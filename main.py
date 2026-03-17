@@ -10,6 +10,20 @@ pygame.init()
 
 
 class TetrisGame:
+
+    def remove_oldest_obstacle_wave(self):
+        if not self.obstacle_waves:
+            return
+
+        oldest_wave = self.obstacle_waves.pop(0)
+
+        for x, y in oldest_wave:
+            if 0 <= y < ROWS and 0 <= x < COLS:
+                cell = self.grid[y][x]
+
+                if cell is not None and cell["type"] == "obstacle":
+                    self.grid[y][x] = None
+                
     def __init__(self):
         self.screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
         pygame.display.set_caption(TITLE)
@@ -48,23 +62,25 @@ class TetrisGame:
         return images
 
     def reset_game(self, mode):
-        self.mode = mode
-        self.grid = [[None for _ in range(COLS)] for _ in range(ROWS)]
+            self.mode = mode
+            self.grid = [[None for _ in range(COLS)] for _ in range(ROWS)]
 
-        self.score = 0
-        self.lines = 0
-        self.level = 1
+            self.score = 0
+            self.lines = 0
+            self.level = 1
 
-        self.fall_timer = 0.0
-        self.lock_timer = 0.0
+            self.fall_timer = 0.0
+            self.lock_timer = 0.0
 
-        self.obstacle_timer = 0.0
-        self.obstacle_interval = 12.0
+            self.obstacle_timer = 0.0
+            self.obstacle_interval = 17.0
 
-        self.current_piece = self.generate_piece()
-        self.next_piece = self.generate_piece()
+            self.obstacle_waves = []
 
-        self.game_over = False
+            self.current_piece = self.generate_piece()
+            self.next_piece = self.generate_piece()
+
+            self.game_over = False
 
     # GERAÇÃO / DIFICULDADE
     def chance_fast_piece(self):
@@ -93,8 +109,7 @@ class TetrisGame:
         return max(0.10, BASE_FALL_TIME - (self.level - 1) * 0.045)
 
     def update_obstacle_interval(self):
-        self.obstacle_interval = max(4.0, 12.0 - (self.level - 1) * 0.75)
-
+        self.obstacle_interval = max(8.0, 20.0 - (self.level - 1) * 0.6)
     # AUXILIARS VISUAIS
     def get_title_color(self):
         idx = int(self.title_timer * 4) % len(self.title_colors)
@@ -225,20 +240,33 @@ class TetrisGame:
     # OBSTÁCULOS
     def spawn_obstacles(self):
         count = min(1 + self.level // 3, 4)
+        new_wave = []
 
         for _ in range(count):
             attempts = 20
+
             while attempts > 0:
                 x = random.randint(0, COLS - 1)
                 y = random.randint(ROWS // 2, ROWS - 1)
 
+                # não coloca obstáculo em cima de célula ocupada
                 if self.grid[y][x] is None:
                     self.grid[y][x] = {
                         "type": "obstacle",
                         "pulse": random.random() * 6.28
                     }
+                    new_wave.append((x, y))
                     break
+
                 attempts -= 1
+
+        # só salva a onda se realmente criou algo
+        if new_wave:
+            self.obstacle_waves.append(new_wave)
+
+        # a cada 2 ondas mantidas, quando entra a terceira remove a mais antiga
+        if len(self.obstacle_waves) > 2:
+            self.remove_oldest_obstacle_wave()
 
     # UPDATE
     def update(self, dt, keys):
