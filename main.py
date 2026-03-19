@@ -5,6 +5,7 @@ import pygame
 
 from settings import *
 from pieces import Piece, random_shape_key
+from challenges_config import *
 
 pygame.init()
 
@@ -72,10 +73,11 @@ class TetrisGame:
             self.fall_timer = 0.0
             self.lock_timer = 0.0
 
-            self.obstacle_timer = 0.0
-            self.obstacle_interval = 17.0
-
             self.obstacle_waves = []
+
+            self.challenge_active = None
+            self.challenge_timer = 0.0
+            self.challenge_phase = "waiting"
 
             self.current_piece = self.generate_piece()
             self.next_piece = self.generate_piece()
@@ -108,8 +110,41 @@ class TetrisGame:
     def get_base_fall_time(self):
         return max(0.10, BASE_FALL_TIME - (self.level - 1) * 0.045)
 
-    def update_obstacle_interval(self):
-        self.obstacle_interval = max(8.0, 20.0 - (self.level - 1) * 0.6)
+    # SISTEMA DE DESAFIOS
+    def get_enabled_challenges(self):
+        challenges = []
+        if CHALLENGE_OBSTACLES_ENABLED:
+            challenges.append("obstacles")
+        if CHALLENGE_SPEED_ENABLED:
+            challenges.append("speed")
+        return challenges
+
+    def get_challenge_interval(self):
+        interval = CHALLENGE_INTERVAL - (self.level - 1) * CHALLENGE_INTERVAL_LEVEL_REDUCTION
+        return max(CHALLENGE_INTERVAL_MIN, interval)
+
+    def get_challenge_duration(self):
+        duration = CHALLENGE_DURATION - (self.level - 1) * CHALLENGE_DURATION_LEVEL_REDUCTION
+        return max(CHALLENGE_DURATION_MIN, duration)
+
+    def activate_challenge(self):
+        enabled = self.get_enabled_challenges()
+        if not enabled:
+            return
+        choice = random.choice(enabled)
+        self.challenge_active = choice
+        self.challenge_phase = "active"
+        self.challenge_timer = 0.0
+        if choice == "obstacles":
+            self.spawn_obstacles()
+
+    def deactivate_challenge(self):
+        if self.challenge_active == "obstacles":
+            while self.obstacle_waves:
+                self.remove_oldest_obstacle_wave()
+        self.challenge_active = None
+        self.challenge_phase = "waiting"
+        self.challenge_timer = 0.0
     # AUXILIARS VISUAIS
     def get_title_color(self):
         idx = int(self.title_timer * 4) % len(self.title_colors)
@@ -159,7 +194,6 @@ class TetrisGame:
             self.lines += cleared
             self.score += LINE_CLEAR_POINTS.get(cleared, 800) * self.level
             self.level = (self.lines // LINES_PER_LEVEL) + 1
-            self.update_obstacle_interval()
 
         self.current_piece = self.next_piece
         self.next_piece = self.generate_piece()
@@ -239,7 +273,7 @@ class TetrisGame:
 
     # OBSTÁCULOS
     def spawn_obstacles(self):
-        count = min(1 + self.level // 3, 4)
+        count = min(OBSTACLE_COUNT_BASE + (self.level // 3) * OBSTACLE_COUNT_PER_LEVEL, OBSTACLE_COUNT_MAX)
         new_wave = []
 
         for _ in range(count):
@@ -249,7 +283,6 @@ class TetrisGame:
                 x = random.randint(0, COLS - 1)
                 y = random.randint(ROWS // 2, ROWS - 1)
 
-                # não coloca obstáculo em cima de célula ocupada
                 if self.grid[y][x] is None:
                     self.grid[y][x] = {
                         "type": "obstacle",
@@ -260,13 +293,8 @@ class TetrisGame:
 
                 attempts -= 1
 
-        # só salva a onda se realmente criou algo
         if new_wave:
             self.obstacle_waves.append(new_wave)
-
-        # a cada 2 ondas mantidas, quando entra a terceira remove a mais antiga
-        if len(self.obstacle_waves) > 2:
-            self.remove_oldest_obstacle_wave()
 
     # UPDATE
     def update(self, dt, keys):
@@ -282,6 +310,9 @@ class TetrisGame:
 
         base_fall = self.get_base_fall_time()
         fall_interval = base_fall / self.current_piece.gravity_mult
+
+        if self.challenge_active == "speed":
+            fall_interval /= SPEED_CHALLENGE_MULTIPLIER
 
         if keys[pygame.K_DOWN]:
             fall_interval /= SOFT_DROP_MULT
@@ -304,10 +335,13 @@ class TetrisGame:
                 self.lock_piece()
 
         if self.mode == MODE_CORRIDA:
-            self.obstacle_timer += dt
-            if self.obstacle_timer >= self.obstacle_interval:
-                self.obstacle_timer = 0.0
-                self.spawn_obstacles()
+            self.challenge_timer += dt
+            if self.challenge_phase == "waiting":
+                if self.challenge_timer >= self.get_challenge_interval():
+                    self.activate_challenge()
+            elif self.challenge_phase == "active":
+                if self.challenge_timer >= self.get_challenge_duration():
+                    self.deactivate_challenge()
 
     # DESENHO
     def draw_text(self, text, font, color, x, y, center=False):
@@ -598,24 +632,62 @@ class TetrisGame:
         )
 
         if self.mode == MODE_CORRIDA:
-            obs_y = 550
-
-            self.draw_text("OBSTÁCULO", FONT_SMALL, MUTED, SIDEBAR_X + 25, obs_y)
-
-            remaining = max(0.0, self.obstacle_interval - self.obstacle_timer)
-
-            self.draw_text(
-                f"{remaining:0.1f}s",
-                FONT_MEDIUM,
-                OBSTACLE_GLOW,
-                SIDEBAR_X + 25,
-                obs_y + 28
-            )
-
+            ch_y = 550
             bar_x = SIDEBAR_X + 25
-            bar_y = obs_y + 65
+            bar_y = ch_y + 60
             bar_w = SIDEBAR_WIDTH - 50
-            bar_h = 20
+            bar_h = 18
+
+            if self.challenge_phase == "waiting":
+                interval = self.get_challenge_interval()
+                remaining = max(0.0, interval - self.challenge_timer)
+                progress = min(1.0, self.challenge_timer / interval) if interval > 0 else 1.0
+
+                if remaining <= 3.0:
+                    flash = abs(pygame.math.Vector2(1, 0).rotate(self.title_timer * 400).x)
+                    warn_color = (
+                        int(150 + 105 * flash),
+                        int(150 + 105 * flash),
+                        int(80 + 60 * flash)
+                    )
+                else:
+                    warn_color = MUTED
+
+                self.draw_text("DESAFIO", FONT_SMALL, warn_color, SIDEBAR_X + 25, ch_y)
+                self.draw_text(
+                    f"Próximo em: {remaining:0.1f}s",
+                    FONT_MEDIUM,
+                    warn_color,
+                    SIDEBAR_X + 25,
+                    ch_y + 28
+                )
+
+                bar_color = OBSTACLE if progress > 0.75 else MUTED
+
+            elif self.challenge_phase == "active":
+                duration = self.get_challenge_duration()
+                remaining = max(0.0, duration - self.challenge_timer)
+                progress = 1.0 - min(1.0, self.challenge_timer / duration) if duration > 0 else 0.0
+
+                if self.challenge_active == "obstacles":
+                    label = "OBSTÁCULOS"
+                    color = OBSTACLE_GLOW
+                    bar_color = OBSTACLE
+                else:
+                    label = "VELOCIDADE"
+                    color = CHALLENGE_SPEED_COLOR
+                    bar_color = CHALLENGE_SPEED_COLOR
+
+                self.draw_text(label, FONT_MEDIUM, color, SIDEBAR_X + 25, ch_y)
+                self.draw_text(
+                    f"Restante: {remaining:0.1f}s",
+                    FONT_SMALL,
+                    color,
+                    SIDEBAR_X + 25,
+                    ch_y + 32
+                )
+
+            fill_w = int(bar_w * progress)
 
             pygame.draw.rect(
                 self.screen,
@@ -623,17 +695,12 @@ class TetrisGame:
                 (bar_x, bar_y, bar_w, bar_h),
                 border_radius=8
             )
-
-            progress = min(1.0, self.obstacle_timer / self.obstacle_interval) if self.obstacle_interval > 0 else 1.0
-            fill_w = int(bar_w * progress)
-
             pygame.draw.rect(
                 self.screen,
-                OBSTACLE,
+                bar_color,
                 (bar_x, bar_y, fill_w, bar_h),
                 border_radius=8
             )
-
             pygame.draw.rect(
                 self.screen,
                 BORDER,
@@ -699,16 +766,25 @@ class TetrisGame:
             FONT_SMALL,
             MUTED,
             center_x,
-            380,
+            370,
             center=True
         )
-    
+
         self.draw_text(
-            "CORRIDA = obstáculos + velocidade",
+            "CORRIDA = desafios aleatórios",
             FONT_SMALL,
             MUTED,
             center_x,
-            455,
+            410,
+            center=True
+        )
+
+        self.draw_text(
+            "obstáculos, velocidade e mais",
+            FONT_SMALL,
+            MUTED,
+            center_x,
+            440,
             center=True
         )
     
@@ -747,6 +823,20 @@ class TetrisGame:
         self.draw_board()
         self.draw_ghost_piece()
         self.draw_current_piece()
+
+        if self.challenge_active == "speed":
+            pulse = abs(pygame.math.Vector2(1, 0).rotate(self.title_timer * 300).x)
+            alpha = int(60 + 120 * pulse)
+            border_surf = pygame.Surface((PLAY_WIDTH + 6, PLAY_HEIGHT + 6), pygame.SRCALPHA)
+            pygame.draw.rect(
+                border_surf,
+                (*CHALLENGE_SPEED_COLOR, alpha),
+                (0, 0, PLAY_WIDTH + 6, PLAY_HEIGHT + 6),
+                3,
+                border_radius=2
+            )
+            self.screen.blit(border_surf, (PLAY_X - 3, PLAY_Y - 3))
+
         self.draw_sidebar()
 
         if self.state == "paused":
