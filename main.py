@@ -46,7 +46,8 @@ class TetrisGame:
         self.title_timer = 0.0
 
         self.mode = MODE_CLASSICO
-        self.state = "menu"   # menu, playing, paused, game_over
+        self.state = "menu"
+        self.menu_selection = 0  # 0 = Clássico, 1 = Corrida
 
         self.reset_game(self.mode)
 
@@ -728,88 +729,103 @@ class TetrisGame:
     def draw_menu(self):
         self.screen.fill(BG)
 
-        menu_w = 560
-        menu_h = 560
-        menu_x = (WINDOW_WIDTH - menu_w) // 2
-        menu_y = 70
-
-        pygame.draw.rect(
-            self.screen,
-            (14, 14, 24),
-            (menu_x, menu_y, menu_w, menu_h),
-            border_radius=18
-        )
-
-        pygame.draw.rect(
-            self.screen,
-            BORDER,
-            (menu_x, menu_y, menu_w, menu_h),
-            2,
-            border_radius=18
-        )
-
         center_x = WINDOW_WIDTH // 2
+
+        MODES = [
+            {
+                "label": "MODO CLÁSSICO",
+                "color": SPEED_NORMAL,
+                "desc": ["Tetris puro e limpo.", "Encaixe as peças e survive."],
+                "key": "1",
+            },
+            {
+                "label": "MODO CORRIDA",
+                "color": OBSTACLE_GLOW,
+                "desc": ["Desafios aleatórios durante a partida:", "barreiras, velocidade e mais."],
+                "key": "2",
+            },
+        ]
+
+        menu_w = 560
+        menu_h = 580
+        menu_x = (WINDOW_WIDTH - menu_w) // 2
+        menu_y = 60
+
+        pygame.draw.rect(self.screen, (14, 14, 24), (menu_x, menu_y, menu_w, menu_h), border_radius=18)
+        pygame.draw.rect(self.screen, BORDER, (menu_x, menu_y, menu_w, menu_h), 2, border_radius=18)
 
         self.draw_text(
             "NEON TETRIS",
             FONT_HUGE,
             self.get_title_color(),
             center_x,
-            130,
+            118,
             center=True
         )
 
-        self.draw_text(
-            "1 - Modo CLÁSSICO",
-            FONT_BIG,
-            SPEED_NORMAL,
-            center_x,
-            240,
-            center=True
-        )
+        card_w = menu_w - 60
+        card_x = menu_x + 30
+        card_top = 175
+        card_h = 110
+        card_gap = 22
+
+        pulse = abs(pygame.math.Vector2(1, 0).rotate(self.title_timer * 180).x)
+
+        for i, m in enumerate(MODES):
+            cy = card_top + i * (card_h + card_gap)
+            selected = (i == self.menu_selection)
+
+            if selected:
+                glow_alpha = int(30 + 25 * pulse)
+                glow_surf = pygame.Surface((card_w + 8, card_h + 8), pygame.SRCALPHA)
+                pygame.draw.rect(
+                    glow_surf,
+                    (*m["color"], glow_alpha),
+                    (0, 0, card_w + 8, card_h + 8),
+                    border_radius=14
+                )
+                self.screen.blit(glow_surf, (card_x - 4, cy - 4))
+
+                card_bg = (28, 28, 44)
+                border_col = m["color"]
+                border_w = 2
+            else:
+                card_bg = (18, 18, 30)
+                border_col = BORDER
+                border_w = 1
+
+            pygame.draw.rect(self.screen, card_bg, (card_x, cy, card_w, card_h), border_radius=12)
+            pygame.draw.rect(self.screen, border_col, (card_x, cy, card_w, card_h), border_w, border_radius=12)
+
+            label_color = m["color"] if selected else MUTED
+            self.draw_text(m["label"], FONT_BIG, label_color, card_x + card_w // 2, cy + 26, center=True)
+
+            for j, line in enumerate(m["desc"]):
+                desc_color = TEXT if selected else (90, 90, 110)
+                self.draw_text(line, FONT_SMALL, desc_color, card_x + card_w // 2, cy + 60 + j * 22, center=True)
+
+            key_label = f"[{m['key']}]"
+            key_color = m["color"] if selected else (60, 60, 80)
+            self.draw_text(key_label, FONT_SMALL, key_color, card_x + card_w - 20, cy + 12)
+
+        # Seta indicadora
+        sel_cy = card_top + self.menu_selection * (card_h + card_gap) + card_h // 2
+        arrow_x = card_x - 22
+        arrow_offset = int(4 * pulse)
+        arrow_color = MODES[self.menu_selection]["color"]
+        points = [
+            (arrow_x - 8 + arrow_offset, sel_cy),
+            (arrow_x - 18 + arrow_offset, sel_cy - 8),
+            (arrow_x - 18 + arrow_offset, sel_cy + 8),
+        ]
+        pygame.draw.polygon(self.screen, arrow_color, points)
 
         self.draw_text(
-            "2 - Modo CORRIDA",
-            FONT_BIG,
-            OBSTACLE_GLOW,
-            center_x,
-            295,
-            center=True
-        )
-
-        self.draw_text(
-            "CLÁSSICO = encaixe básico",
+            "↑↓  navegar    ENTER  confirmar",
             FONT_SMALL,
             MUTED,
             center_x,
-            370,
-            center=True
-        )
-
-        self.draw_text(
-            "CORRIDA = desafios aleatórios",
-            FONT_SMALL,
-            MUTED,
-            center_x,
-            410,
-            center=True
-        )
-
-        self.draw_text(
-            "obstáculos, velocidade e mais",
-            FONT_SMALL,
-            MUTED,
-            center_x,
-            440,
-            center=True
-        )
-    
-        self.draw_text(
-            "ENTER inicia o modo Clássico",
-            FONT_SMALL,
-            TEXT,
-            center_x,
-            565,
+            menu_y + menu_h - 28,
             center=True
         )
 
@@ -866,14 +882,17 @@ class TetrisGame:
     # INPUT
     def handle_keydown(self, key):
         if self.state == "menu":
-            if key == pygame.K_1:
+            if key in (pygame.K_UP, pygame.K_DOWN):
+                self.menu_selection = 1 - self.menu_selection
+            elif key == pygame.K_1:
                 self.reset_game(MODE_CLASSICO)
                 self.state = "playing"
             elif key == pygame.K_2:
                 self.reset_game(MODE_CORRIDA)
                 self.state = "playing"
             elif key == pygame.K_RETURN:
-                self.reset_game(MODE_CLASSICO)
+                mode = MODE_CLASSICO if self.menu_selection == 0 else MODE_CORRIDA
+                self.reset_game(mode)
                 self.state = "playing"
             return
 
