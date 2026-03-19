@@ -104,22 +104,19 @@ CHALLENGE_INTERVAL_LEVEL_REDUCTION = 0.6
 CHALLENGE_INTERVAL_MIN = 6.0
 
 # Duração de cada desafio ativo (segundos)
-CHALLENGE_DURATION = 8.0
+CHALLENGE_DURATION = 5.0
 
 # Duração mínima do desafio (segundos)
-CHALLENGE_DURATION_MIN = 4.0
+CHALLENGE_DURATION_MIN = 2.5
 
 # Redução da duração por nível (seg/nível)
-CHALLENGE_DURATION_LEVEL_REDUCTION = 0.3
+CHALLENGE_DURATION_LEVEL_REDUCTION = 0.2
 
-# Quantidade base de blocos-obstáculo por onda
-OBSTACLE_COUNT_BASE = 2
+# Número de lacunas (buracos) na barreira inicial (para o jogador passar)
+BARRIER_GAPS_BASE = 3
 
-# Blocos extras a cada 3 níveis
-OBSTACLE_COUNT_PER_LEVEL = 1
-
-# Máximo de blocos por onda
-OBSTACLE_COUNT_MAX = 5
+# Lacunas mínimas (jogo mais difícil em níveis altos)
+BARRIER_GAPS_MIN = 1
 
 # Multiplicador de velocidade de queda durante o desafio
 SPEED_CHALLENGE_MULTIPLIER = 3.0

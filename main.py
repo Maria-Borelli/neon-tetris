@@ -11,18 +11,21 @@ pygame.init()
 
 class TetrisGame:
 
-    def remove_oldest_obstacle_wave(self):
-        if not self.obstacle_waves:
-            return
-
-        oldest_wave = self.obstacle_waves.pop(0)
-
-        for x, y in oldest_wave:
+    def clear_barrier(self):
+        for x, y in self.obstacle_cells:
             if 0 <= y < ROWS and 0 <= x < COLS:
-                cell = self.grid[y][x]
-
-                if cell is not None and cell["type"] == "obstacle":
+                if self.grid[y][x] is not None and self.grid[y][x]["type"] == "obstacle":
                     self.grid[y][x] = None
+        self.obstacle_cells = []
+
+    def refresh_obstacle_cells(self):
+        """Ressincroniza obstacle_cells com o estado real do grid (ex: após clear_lines)."""
+        self.obstacle_cells = [
+            (x, y)
+            for y in range(ROWS)
+            for x in range(COLS)
+            if self.grid[y][x] is not None and self.grid[y][x]["type"] == "obstacle"
+        ]
                 
     def __init__(self):
         self.screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
@@ -72,7 +75,7 @@ class TetrisGame:
             self.fall_timer = 0.0
             self.lock_timer = 0.0
 
-            self.obstacle_waves = []
+            self.obstacle_cells = []
 
             self.challenge_active = None
             self.challenge_timer = 0.0
@@ -135,12 +138,11 @@ class TetrisGame:
         self.challenge_phase = "active"
         self.challenge_timer = 0.0
         if choice == "obstacles":
-            self.spawn_obstacles()
+                    self.spawn_barrier()
 
     def deactivate_challenge(self):
         if self.challenge_active == "obstacles":
-            while self.obstacle_waves:
-                self.remove_oldest_obstacle_wave()
+            self.clear_barrier()
         self.challenge_active = None
         self.challenge_phase = "waiting"
         self.challenge_timer = 0.0
@@ -193,6 +195,8 @@ class TetrisGame:
             self.lines += cleared
             self.score += LINE_CLEAR_POINTS.get(cleared, 800) * self.level
             self.level = (self.lines // LINES_PER_LEVEL) + 1
+            if self.mode == MODE_CORRIDA:
+                self.refresh_obstacle_cells()
 
         self.current_piece = self.next_piece
         self.next_piece = self.generate_piece()
@@ -270,30 +274,43 @@ class TetrisGame:
         self.current_piece.touching_ground = True
         self.lock_piece()
 
-    # OBSTÁCULOS
-    def spawn_obstacles(self):
-        count = min(OBSTACLE_COUNT_BASE + (self.level // 3) * OBSTACLE_COUNT_PER_LEVEL, OBSTACLE_COUNT_MAX)
-        new_wave = []
+    # OBSTÁCULOS / BARREIRA
+    def spawn_barrier(self):
+        # Remove barreira anterior antes de criar nova
+        self.clear_barrier()
 
-        for _ in range(count):
-            attempts = 20
+        # Posição da linha (metade inferior do tabuleiro, longe do fundo)
+        row_y = random.randint(ROWS // 2, ROWS - 5)
 
-            while attempts > 0:
-                x = random.randint(0, COLS - 1)
-                y = random.randint(ROWS // 2, ROWS - 1)
+        # Lacunas: diminuem conforme o nível sobe
+        gaps = max(BARRIER_GAPS_MIN, BARRIER_GAPS_BASE - self.level // 3)
 
-                if self.grid[y][x] is None:
-                    self.grid[y][x] = {
+        # Garante que cada lacuna tenha 2 cols adjacentes livres (peças com 2+ de largura)
+        gap_positions = set()
+        available = list(range(COLS))
+        while len(gap_positions) < gaps and len(available) >= 2:
+            idx = random.randrange(len(available) - 1)
+            col = available[idx]
+            # par adjacente: col e col+1
+            if col + 1 in available:
+                gap_positions.add(col)
+                gap_positions.add(col + 1)
+                available = [c for c in available if c != col and c != col + 1]
+            else:
+                available.pop(idx)
+
+        cells = []
+        for x in range(COLS):
+            if x not in gap_positions:
+                # Se a célula já tiver uma peça, pula (não sobrescreve)
+                if self.grid[row_y][x] is None:
+                    self.grid[row_y][x] = {
                         "type": "obstacle",
                         "pulse": random.random() * 6.28
                     }
-                    new_wave.append((x, y))
-                    break
+                    cells.append((x, row_y))
 
-                attempts -= 1
-
-        if new_wave:
-            self.obstacle_waves.append(new_wave)
+        self.obstacle_cells = cells
 
     # UPDATE
     def update(self, dt, keys):
