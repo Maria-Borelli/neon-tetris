@@ -5,7 +5,6 @@ import pygame
 
 from settings import *
 from pieces import Piece, random_shape_key
-from challenges_config import *
 
 pygame.init()
 
