@@ -36,6 +36,9 @@ GHOST = (180, 180, 255)
 OBSTACLE = (255, 90, 180)
 OBSTACLE_GLOW = (255, 150, 210)
 
+CHALLENGE_SPEED_COLOR = (255, 180, 30)
+CHALLENGE_SPEED_GLOW = (255, 220, 80)
+
 SPEED_SLOW = (80, 200, 255)
 SPEED_NORMAL = (180, 180, 180)
 SPEED_FAST = (255, 210, 90)
@@ -85,3 +88,35 @@ FONT_HUGE = pygame.font.SysFont("couriernew,consolas,arial", 40, bold=True)
 
 #   ASSETS  
 BLOCK_ASSET_DIR = "assets/blocks"
+
+#   DESAFIOS (Modo Corrida)  
+# Ativar / desativar desafios
+CHALLENGE_OBSTACLES_ENABLED = True      # Blocos-obstáculo no tabuleiro
+CHALLENGE_SPEED_ENABLED = True          # Aceleração temporária de queda
+
+# Intervalo base entre desafios (segundos)
+CHALLENGE_INTERVAL = 14.0
+
+# Redução do intervalo por nível (seg/nível)
+CHALLENGE_INTERVAL_LEVEL_REDUCTION = 0.6
+
+# Intervalo mínimo entre desafios (segundos)
+CHALLENGE_INTERVAL_MIN = 6.0
+
+# Duração de cada desafio ativo (segundos)
+CHALLENGE_DURATION = 5.0
+
+# Duração mínima do desafio (segundos)
+CHALLENGE_DURATION_MIN = 2.5
+
+# Redução da duração por nível (seg/nível)
+CHALLENGE_DURATION_LEVEL_REDUCTION = 0.2
+
+# Número de lacunas (buracos) na barreira inicial (para o jogador passar)
+BARRIER_GAPS_BASE = 3
+
+# Lacunas mínimas (jogo mais difícil em níveis altos)
+BARRIER_GAPS_MIN = 1
+
+# Multiplicador de velocidade de queda durante o desafio
+SPEED_CHALLENGE_MULTIPLIER = 3.0
