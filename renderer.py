@@ -263,7 +263,6 @@ class RendererMixin:
             self.draw_text(m["label"], FONT_BIG, m["color"] if selected else MUTED, card_x + card_w // 2, cy + 26, center=True)
             for j, line in enumerate(m["desc"]):
                 self.draw_text(line, FONT_SMALL, TEXT if selected else (90, 90, 110), card_x + card_w // 2, cy + 60 + j * 22, center=True)
-            self.draw_text(f"[{m['key']}]", FONT_SMALL, m["color"] if selected else (60, 60, 80), card_x + card_w - 20, cy + 12)
 
         sel_cy = card_top + self.menu_selection * (card_h + card_gap) + card_h // 2
         arrow_x = card_x - 22
