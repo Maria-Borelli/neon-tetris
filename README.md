@@ -126,9 +126,10 @@ Stack and place pieces to complete horizontal lines and prevent the board from f
 
 ---
 
-## Author
+## Authors
 
-Maria Clara
+Maria Clara,
+Lauan Amorim
 
 ---
 
