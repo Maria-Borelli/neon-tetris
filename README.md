@@ -1,36 +1,36 @@
 # Neon Tetris
 
-Neon Tetris is a 2D game inspired by the classic Tetris, developed in Python using the Pygame library. The project applies graphical primitives, game loop structure, and core programming concepts, while introducing additional gameplay mechanics such as dynamic challenges and variable gravity.
+Neon Tetris é um jogo 2D inspirado no clássico Tetris, desenvolvido em Python com a biblioteca Pygame. O projeto aplica primitivas gráficas, estrutura de game loop e conceitos fundamentais de programação, com mecânicas adicionais como desafios dinâmicos e gravidade variável.
 
 ---
 
-## Features
+## Funcionalidades
 
-- Classic Tetris gameplay (10x20 grid)
-- Two game modes:
-  - Classic Mode
-  - Race Mode with dynamic challenges
-- Variable gravity system (slow, normal, fast)
-- Locked pieces mechanic
-- Ghost piece (landing preview)
-- Next piece preview with status and gravity indicator
-- Score and level progression system
-- Temporary challenge system in Race Mode:
-  - Obstacle barrier (temporary horizontal wall with gaps)
-  - Speed boost (increased falling speed)
-- Animated UI elements and neon visual style
-- Pause, restart and return-to-menu controls
+- Gameplay clássico de Tetris (grade 10×20)
+- Dois modos de jogo:
+  - Modo Clássico
+  - Modo Corrida com desafios dinâmicos
+- Sistema de gravidade variável (lenta, normal, rápida)
+- Mecânica de peças travadas
+- Peça fantasma (prévia de aterrissagem)
+- Prévia da próxima peça com indicador de status e gravidade
+- Sistema de pontuação e progressão de nível
+- Sistema de desafios temporários no Modo Corrida:
+  - Barreira obstáculo (parede horizontal temporária com lacunas)
+  - Turbo de velocidade (queda acelerada temporária)
+- Elementos de UI animados e estilo visual neon
+- Controles de pausa, reinício e retorno ao menu
 
 ---
 
-## Technologies
+## Tecnologias
 
 - Python 3
 - Pygame
 
 ---
 
-## Project Structure
+## Estrutura do Projeto
 
 neon-tetris-mari
 │
@@ -43,96 +43,96 @@ neon-tetris-mari
 
 ---
 
-## How to Run
+## Como Executar
 
-1. Clone the repository:
+1. Clone o repositório:
 
 git clone https://github.com/Maria-Borelli/neon-tetris.git
 
-2. Navigate to the project folder:
+2. Acesse a pasta do projeto:
 
 cd neon-tetris-mari
 
-3. Install dependencies:
+3. Instale as dependências:
 
 pip install pygame
 
-4. Run the game:
+4. Execute o jogo:
 
 python main.py
 
 ---
 
-## Controls
+## Controles
 
 Menu
-- Up / Down: navigate options
-- Enter: confirm selection
-- 1: start Classic Mode
-- 2: start Race Mode
+- Seta Cima / Baixo: navegar entre opções
+- Enter: confirmar seleção
+- 1: iniciar Modo Clássico
+- 2: iniciar Modo Corrida
 
 Gameplay
-- Left / Right: move piece
-- Up or X: rotate clockwise
-- Z: rotate counterclockwise
-- Down: soft drop
-- Space: hard drop
-- P: pause / resume
-- R: restart game
-- V: return to main menu
+- Seta Esquerda / Direita: mover peça
+- Seta Cima ou X: rotacionar no sentido horário
+- Z: rotacionar no sentido anti-horário
+- Seta Baixo: queda suave (soft drop)
+- Espaço: queda instantânea (hard drop)
+- P: pausar / continuar
+- R: reiniciar partida
+- V: voltar ao menu principal
 
 ---
 
-## Game Mechanics
+## Mecânicas do Jogo
 
-Gravity System  
-Each piece spawns with a random gravity type:
-- Slow: reduced falling speed
-- Normal: standard speed
-- Fast: increased falling speed
+Sistema de Gravidade  
+Cada peça é gerada com um tipo de gravidade aleatório:
+- Lenta: velocidade de queda reduzida
+- Normal: velocidade padrão
+- Rápida: velocidade de queda aumentada
 
-Locked Pieces  
-Some pieces become restricted when touching the ground, reducing lateral movement.
+Peças Travadas  
+Algumas peças ficam restritas ao tocar o chão, reduzindo a movimentação lateral.
 
-Challenge System (Race Mode)  
-Dynamic challenges are triggered over time:
+Sistema de Desafios (Modo Corrida)  
+Desafios dinâmicos são ativados periodicamente:
 
-Obstacles  
-Temporary horizontal barrier appears with gaps for passage.
+Obstáculos  
+Barreira horizontal temporária aparece com lacunas para passagem.
 
-Speed  
-Falling speed is temporarily increased.
+Velocidade  
+A velocidade de queda é temporariamente aumentada.
 
-Challenge frequency and duration scale with the level.
-
----
-
-## Scoring System
-
-- Single line: 100 points
-- Double line: 300 points
-- Triple line: 500 points
-- Tetris (4 lines): 800 points
-- Hard drop: points per cell
-- Soft drop: points per cell
-
-Level increases every 10 cleared lines.
+A frequência e duração dos desafios escalam com o nível.
 
 ---
 
-## Objective
+## Sistema de Pontuação
 
-Stack and place pieces to complete horizontal lines and prevent the board from filling up. In Race Mode, adapt to dynamic challenges and increasing difficulty.
+- 1 linha: 100 pontos
+- 2 linhas: 300 pontos
+- 3 linhas: 500 pontos
+- Tetris (4 linhas): 800 pontos
+- Hard drop: pontos por célula
+- Soft drop: pontos por célula
+
+O nível sobe a cada 10 linhas eliminadas.
 
 ---
 
-## Authors
+## Objetivo
+
+Empilhar e posicionar peças para completar linhas horizontais e evitar que o tabuleiro encha. No Modo Corrida, adapte-se aos desafios dinâmicos e à dificuldade crescente.
+
+---
+
+## Autores
 
 Maria Clara,
 Lauan Amorim
 
 ---
 
-## Notes
+## Observações
 
-This project was developed as part of an academic assignment focused on graphical primitives and game logic implementation.
+Este projeto foi desenvolvido como parte de um trabalho acadêmico com foco em primitivas gráficas e implementação de lógica de jogos.
