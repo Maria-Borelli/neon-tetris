@@ -44,7 +44,7 @@ neon-tetris-mari
 ---
 
 ## Requisitos
-[Python](https://www.python.org/downloads/windows/) 13.12.X
+[Python](https://www.python.org/downloads/windows/) 3.12.X
 
 ## Como Executar
 
