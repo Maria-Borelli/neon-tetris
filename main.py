@@ -87,7 +87,7 @@ class TetrisGame:
 
             self.game_over = False
 
-    # GERAÇÃO / DIFICULDADE
+    # Dificuldade 
     def chance_fast_piece(self):
         return min(0.18 + (self.level - 1) * 0.03, 0.45)
 
@@ -113,7 +113,7 @@ class TetrisGame:
     def get_base_fall_time(self):
         return max(0.10, BASE_FALL_TIME - (self.level - 1) * 0.045)
 
-    # SISTEMA DE DESAFIOS
+    # Sistema de desafio 
     def get_enabled_challenges(self):
         challenges = []
         if CHALLENGE_OBSTACLES_ENABLED:
@@ -147,7 +147,7 @@ class TetrisGame:
         self.challenge_active = None
         self.challenge_phase = "waiting"
         self.challenge_timer = 0.0
-    # AUXILIARS VISUAIS
+    # Auxiliares visuais
     def get_title_color(self):
         idx = int(self.title_timer * 4) % len(self.title_colors)
         return self.title_colors[idx]
@@ -159,7 +159,7 @@ class TetrisGame:
             return 5
         return 0
 
-    # MATRIZ / COLISÃO
+    # Matriz/Colisão
     def shape_cells(self, piece, dx=0, dy=0, rotation=None):
         cells = []
         matrix = piece.matrix if rotation is None else piece.rotations[rotation]
@@ -241,7 +241,7 @@ class TetrisGame:
 
         return ghost_piece.y
 
-    # MOVIMENTO
+    # Movimento
     def move_piece(self, dx):
         if self.current_piece.position_locked and self.current_piece.touching_ground:
             return
@@ -275,7 +275,7 @@ class TetrisGame:
         self.current_piece.touching_ground = True
         self.lock_piece()
 
-    # OBSTÁCULOS / BARREIRA
+    # Obstáculos
     def spawn_barrier(self):
         # Remove barreira anterior antes de criar nova
         self.clear_barrier()
@@ -313,7 +313,7 @@ class TetrisGame:
 
         self.obstacle_cells = cells
 
-    # UPDATE
+    # Update
     def update(self, dt, keys):
         if self.state != "playing":
             return
@@ -360,7 +360,7 @@ class TetrisGame:
                 if self.challenge_timer >= self.get_challenge_duration():
                     self.deactivate_challenge()
 
-    # DESENHO
+    # Desenho
     def draw_text(self, text, font, color, x, y, center=False):
         surf = font.render(text, True, color)
         rect = surf.get_rect()
@@ -804,11 +804,7 @@ class TetrisGame:
                 desc_color = TEXT if selected else (90, 90, 110)
                 self.draw_text(line, FONT_SMALL, desc_color, card_x + card_w // 2, cy + 60 + j * 22, center=True)
 
-            key_label = f"[{m['key']}]"
-            key_color = m["color"] if selected else (60, 60, 80)
-            self.draw_text(key_label, FONT_SMALL, key_color, card_x + card_w - 20, cy + 12)
-
-        # Seta indicadora
+        # Seta do menu
         sel_cy = card_top + self.menu_selection * (card_h + card_gap) + card_h // 2
         arrow_x = card_x - 22
         arrow_offset = int(4 * pulse)
@@ -835,7 +831,15 @@ class TetrisGame:
         self.screen.blit(overlay, (0, 0))
         self.draw_text("PAUSADO", FONT_HUGE, TEXT, WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2 - 20, center=True)
         self.draw_text("Pressione P para voltar", FONT_SMALL, MUTED, WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2 + 40, center=True)
-
+        self.draw_text(
+        "V para voltar ao menu",
+        FONT_SMALL,
+        MUTED,
+        WINDOW_WIDTH // 2,
+        WINDOW_HEIGHT // 2 + 80,
+        center=True
+    )
+        
     def draw_game_over(self):
         overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, 170))
@@ -843,6 +847,15 @@ class TetrisGame:
         self.draw_text("GAME OVER", FONT_HUGE, LOCKED_BORDER, WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2 - 40, center=True)
         self.draw_text(f"Score final: {self.score}", FONT_MEDIUM, TEXT, WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2 + 20, center=True)
         self.draw_text("R para reiniciar", FONT_SMALL, MUTED, WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2 + 70, center=True)
+
+        self.draw_text(
+        "V para voltar ao menu",
+        FONT_SMALL,
+        MUTED,
+        WINDOW_WIDTH // 2,
+        WINDOW_HEIGHT // 2 + 100,
+        center=True
+        )
 
     def draw(self):
         if self.state == "menu":
@@ -879,7 +892,7 @@ class TetrisGame:
 
         pygame.display.flip()
 
-    # INPUT
+    # Entrada
     def handle_keydown(self, key):
         if self.state == "menu":
             if key in (pygame.K_UP, pygame.K_DOWN):
@@ -908,6 +921,11 @@ class TetrisGame:
                 self.state = "playing"
             return
 
+        if key == pygame.K_v:
+            self.menu_selection = 0
+            self.state = "menu"
+            return
+
         if self.state != "playing":
             return
 
@@ -921,8 +939,8 @@ class TetrisGame:
             self.rotate_piece("ccw")
         elif key == pygame.K_SPACE:
             self.hard_drop()
-
-    # LOOP
+    
+    # Loop
     def run(self):
         while True:
             dt = self.clock.tick(FPS) / 1000.0
