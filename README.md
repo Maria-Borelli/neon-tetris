@@ -47,7 +47,7 @@ neon-tetris-mari
 
 1. Clone the repository:
 
-git clone https://github.com/your-username/neon-tetris-mari.git
+git clone https://github.com/Maria-Borelli/neon-tetris.git
 
 2. Navigate to the project folder:
 
