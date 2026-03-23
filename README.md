@@ -43,6 +43,9 @@ neon-tetris-mari
 
 ---
 
+## Requisitos
+[Python](https://www.python.org/downloads/windows/) 13.12.X
+
 ## Como Executar
 
 1. Clone o repositório:
