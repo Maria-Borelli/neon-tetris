@@ -139,3 +139,20 @@ Lauan Amorim
 ## Observações
 
 Este projeto foi desenvolvido como parte de um trabalho acadêmico com foco em primitivas gráficas e implementação de lógica de jogos.
+
+
+## Controles
+
+O jogo aceita teclado e controles compatíveis com o sistema de joystick/SDL do Pygame.
+
+| Ação | Teclado | Controle |
+| --- | --- | --- |
+| Mover à esquerda | ← | D-Pad ← |
+| Mover à direita | → | D-Pad → |
+| Soft Drop | ↓ | D-Pad ↓ |
+| Hard Drop | Espaço | D-Pad ↑ ou gatilho |
+| Rotação horária | ↑ ou X | Botão de ação principal |
+| Rotação anti-horária | Z ou Ctrl | Botão de ação secundário/esquerdo |
+| Hold | C ou Shift | LB/L1/L ou RB/R1/R |
+
+O Hold pode ser usado uma vez por peça e volta a ficar disponível depois que a peça atual é travada no tabuleiro.

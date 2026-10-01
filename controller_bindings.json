@@ -1,0 +1,48 @@
+{
+  "left": [
+    {
+      "type": "axis",
+      "axis": 0,
+      "sign": -1
+    }
+  ],
+  "right": [
+    {
+      "type": "axis",
+      "axis": 0,
+      "sign": 1
+    }
+  ],
+  "soft_drop": [
+    {
+      "type": "axis",
+      "axis": 1,
+      "sign": 1
+    }
+  ],
+  "hard_drop": [
+    {
+      "type": "button",
+      "button": 7
+    }
+  ],
+  "rotate_cw": [
+    {
+      "type": "button",
+      "button": 0
+    }
+  ],
+  "rotate_ccw": [
+    {
+      "type": "button",
+      "button": 3
+    }
+  ],
+  "hold": [
+    {
+      "type": "axis",
+      "axis": 5,
+      "sign": -1
+    }
+  ]
+}

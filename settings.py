@@ -26,9 +26,9 @@ SIDEBAR_X = PLAY_WIDTH
 SIDEBAR_Y = 0
 
 #   CORES  
-BG = (10, 10, 18)
-GRID = (35, 35, 50)
-BORDER = (90, 90, 120)
+BG = (8, 8, 16)
+GRID = (42, 42, 64)
+BORDER = (58, 58, 94)
 TEXT = (235, 235, 245)
 MUTED = (150, 150, 170)
 
@@ -81,10 +81,12 @@ SOFT_DROP_POINTS_PER_CELL = 1
 
 #   FONTES  
 pygame.font.init()
-FONT_SMALL = pygame.font.SysFont("couriernew,consolas,arial", 16, bold=True)
-FONT_MEDIUM = pygame.font.SysFont("couriernew,consolas,arial", 22, bold=True)
-FONT_BIG = pygame.font.SysFont("couriernew,consolas,arial", 28, bold=True)
-FONT_HUGE = pygame.font.SysFont("couriernew,consolas,arial", 40, bold=True)
+# Pygame usa a primeira fonte instalada disponível; Consolas/Courier garantem fallback.
+_UI_FONT = "orbitron,vt323,pressstart2p,consolas,couriernew,arial"
+FONT_SMALL = pygame.font.SysFont(_UI_FONT, 16, bold=True)
+FONT_MEDIUM = pygame.font.SysFont(_UI_FONT, 22, bold=True)
+FONT_BIG = pygame.font.SysFont(_UI_FONT, 28, bold=True)
+FONT_HUGE = pygame.font.SysFont(_UI_FONT, 40, bold=True)
 
 #   ASSETS  
 BLOCK_ASSET_DIR = "assets/blocks"
