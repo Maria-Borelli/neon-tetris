@@ -2,6 +2,7 @@ import os
 import random
 import sys
 import json
+from datetime import datetime
 import pygame
 
 from settings import *
@@ -57,7 +58,11 @@ class TetrisGame:
 
         self.mode = MODE_CLASSICO
         self.state = "menu"
-        self.menu_selection = 0  # 0 = Clássico, 1 = Corrida
+        self.menu_selection = 0  # 0 = Clássico, 1 = Corrida, 2 = Desafio
+        self.player_name = ""
+        self.name_input = ""
+        self.challenge_scores = self.load_challenge_scores()
+        self.score_saved = False
 
         self.joysticks = {}
         self.init_joysticks()
@@ -305,6 +310,43 @@ class TetrisGame:
                 images[key] = surf
         return images
 
+    def challenge_scores_path(self):
+        return os.path.join(os.path.dirname(os.path.abspath(__file__)), "challenge_scores.json")
+
+    def load_challenge_scores(self):
+        try:
+            with open(self.challenge_scores_path(), "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if isinstance(data, list):
+                return sorted(data, key=lambda item: int(item.get("score", 0)), reverse=True)[:10]
+        except (OSError, ValueError, TypeError):
+            pass
+        return []
+
+    def save_challenge_score(self):
+        if self.mode != MODE_DESAFIO or self.score_saved:
+            return
+        entry = {
+            "name": (self.player_name.strip() or "PLAYER")[:16],
+            "score": int(self.score),
+            "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        }
+        self.challenge_scores.append(entry)
+        self.challenge_scores = sorted(
+            self.challenge_scores, key=lambda item: int(item.get("score", 0)), reverse=True
+        )[:10]
+        try:
+            with open(self.challenge_scores_path(), "w", encoding="utf-8") as f:
+                json.dump(self.challenge_scores, f, ensure_ascii=False, indent=2)
+        except OSError:
+            pass
+        self.score_saved = True
+
+    def finish_game(self):
+        self.game_over = True
+        self.state = "game_over"
+        self.save_challenge_score()
+
     def reset_game(self, mode):
             self.mode = mode
             self.grid = [[None for _ in range(COLS)] for _ in range(ROWS)]
@@ -328,6 +370,7 @@ class TetrisGame:
             self.hold_used = False
 
             self.game_over = False
+            self.score_saved = False
 
     # Dificuldade 
     def chance_fast_piece(self):
@@ -350,7 +393,10 @@ class TetrisGame:
     def generate_piece(self):
         gravity = self.choose_gravity_type()
         locked = random.random() < self.chance_locked_piece()
-        return Piece(random_shape_key(), gravity, locked)
+        piece = Piece(random_shape_key(), gravity, locked)
+        # No Modo Desafio, 10% das peças carregam exatamente uma bomba.
+        piece.bomb_index = random.randrange(4) if self.mode == MODE_DESAFIO and random.random() < 0.10 else None
+        return piece
 
     def get_base_fall_time(self):
         return max(0.10, BASE_FALL_TIME - (self.level - 1) * 0.045)
@@ -421,17 +467,23 @@ class TetrisGame:
         return True
 
     def lock_piece(self):
-        for x, y in self.shape_cells(self.current_piece):
+        cells = self.shape_cells(self.current_piece)
+        bomb_pos = None
+        for index, (x, y) in enumerate(cells):
             if y < 0:
-                self.game_over = True
-                self.state = "game_over"
+                self.finish_game()
                 return
-
             self.grid[y][x] = {
                 "type": "piece",
                 "shape_key": self.current_piece.shape_key,
                 "pulse": 0.0
             }
+            if getattr(self.current_piece, "bomb_index", None) == index:
+                bomb_pos = (x, y)
+
+        if bomb_pos is not None:
+            destroyed = self.explode_bomb(*bomb_pos)
+            self.score -= destroyed * 50
 
         cleared = self.clear_lines()
         if cleared > 0:
@@ -448,10 +500,21 @@ class TetrisGame:
         self.current_piece.y = 0
 
         if not self.valid_position(self.current_piece):
-            self.game_over = True
-            self.state = "game_over"
+            self.finish_game()
 
         self.lock_timer = 0.0
+
+    def explode_bomb(self, center_x, center_y):
+        destroyed = 0
+        for dy in range(-1, 2):
+            for dx in range(-1, 2):
+                x, y = center_x + dx, center_y + dy
+                if 0 <= x < COLS and 0 <= y < ROWS and self.grid[y][x] is not None:
+                    self.grid[y][x] = None
+                    destroyed += 1
+        if self.mode == MODE_CORRIDA:
+            self.refresh_obstacle_cells()
+        return destroyed
 
     def clear_lines(self):
         new_grid = []
@@ -541,8 +604,7 @@ class TetrisGame:
         self.hold_used = True
 
         if not self.valid_position(self.current_piece):
-            self.game_over = True
-            self.state = "game_over"
+            self.finish_game()
 
     def controller_soft_drop(self):
         return any(
@@ -753,16 +815,18 @@ class TetrisGame:
                 pygame.math.Vector2(1, 0).rotate(self.title_timer * 220).x
             )
 
-        for x, y in self.shape_cells(self.current_piece):
+        for index, (x, y) in enumerate(self.shape_cells(self.current_piece)):
             if y >= 0:
                 self.draw_block_transformed(
-                    x,
-                    y,
-                    self.current_piece.shape_key,
-                    angle=angle,
-                    border_color=border,
-                    scale=pulse_scale
+                    x, y, self.current_piece.shape_key,
+                    angle=angle, border_color=border, scale=pulse_scale
                 )
+                if getattr(self.current_piece, "bomb_index", None) == index:
+                    px, py = PLAY_X + x*CELL_SIZE, PLAY_Y + y*CELL_SIZE
+                    pulse = 170 + int(85 * abs(pygame.math.Vector2(1,0).rotate(self.title_timer*420).x))
+                    pygame.draw.circle(self.screen,(255,30,80),(px+CELL_SIZE//2,py+CELL_SIZE//2),CELL_SIZE//4)
+                    pygame.draw.circle(self.screen,(255,pulse,80),(px+CELL_SIZE//2,py+CELL_SIZE//2),CELL_SIZE//4,2)
+                    self.draw_text("B", FONT_SMALL, (255,255,255), px+CELL_SIZE//2, py+CELL_SIZE//2, center=True)
 
     def draw_next_piece(self):
         box_x = SIDEBAR_X + 22
@@ -853,10 +917,10 @@ class TetrisGame:
         modes = [
             ("MODO CLÁSSICO", ["Tetris puro e limpo.", "Encaixe as peças e sobreviva."]),
             ("MODO CORRIDA", ["Desafios aleatórios durante a partida:", "barreiras, velocidade e mais."]),
+            ("MODO DESAFIO", ["10% de chance de peças-bomba.", "Explosões 3x3 valem -50 por bloco."]),
         ]
-        # O logo NEON TETRIS é exclusivamente o da arte de fundo.
-        card_w, card_h, gap = 510, 118, 18
-        card_x, top = (WINDOW_WIDTH-card_w)//2, 350
+        card_w, card_h, gap = 510, 94, 12
+        card_x, top = (WINDOW_WIDTH-card_w)//2, 330
         pulse = (pygame.math.Vector2(1,0).rotate(self.title_timer*150).x+1)/2
         for i, (label, desc) in enumerate(modes):
             y = top + i*(card_h+gap)
@@ -868,20 +932,36 @@ class TetrisGame:
                 bg=pygame.Surface((card_w,card_h),pygame.SRCALPHA); bg.fill((10,12,24,238))
                 self.screen.blit(bg,(card_x,y))
                 pygame.draw.rect(self.screen,(0,240,255),(card_x,y,card_w,card_h),4,border_radius=14)
-                pygame.draw.rect(self.screen,(0,150,180),(card_x+6,y+6,card_w-12,card_h-12),1,border_radius=10)
                 tc,dc=(0,240,255),(255,255,255)
             else:
                 bg=pygame.Surface((card_w,card_h),pygame.SRCALPHA); bg.fill((12,12,28,155))
                 self.screen.blit(bg,(card_x,y))
                 pygame.draw.rect(self.screen,(58,58,94),(card_x,y,card_w,card_h),1,border_radius=14)
                 tc,dc=(160,160,192),(112,112,144)
-            self.draw_text(label,FONT_BIG,tc,center_x,y+28,center=True)
-            self.draw_text(desc[0],FONT_SMALL,dc,center_x,y+67,center=True)
-            self.draw_text(desc[1],FONT_SMALL,dc,center_x,y+93,center=True)
-        footer=pygame.Surface((WINDOW_WIDTH,78),pygame.SRCALPHA); footer.fill((5,5,12,105))
-        self.screen.blit(footer,(0,WINDOW_HEIGHT-78))
-        self.draw_text("[ ↑ / ↓ ] Navegar",FONT_SMALL,(208,208,224),center_x,WINDOW_HEIGHT-52,center=True)
-        self.draw_text("[ ENTER ] Confirmar  |  [ C ] Controles",FONT_SMALL,(208,208,224),center_x,WINDOW_HEIGHT-24,center=True)
+            self.draw_text(label,FONT_BIG,tc,center_x,y+23,center=True)
+            self.draw_text(desc[0],FONT_SMALL,dc,center_x,y+55,center=True)
+            self.draw_text(desc[1],FONT_SMALL,dc,center_x,y+76,center=True)
+        footer=pygame.Surface((WINDOW_WIDTH,68),pygame.SRCALPHA); footer.fill((5,5,12,105))
+        self.screen.blit(footer,(0,WINDOW_HEIGHT-68))
+        self.draw_text("[ ↑ / ↓ ] Navegar",FONT_SMALL,(208,208,224),center_x,WINDOW_HEIGHT-44,center=True)
+        self.draw_text("[ ENTER ] Confirmar  |  [ C ] Controles",FONT_SMALL,(208,208,224),center_x,WINDOW_HEIGHT-19,center=True)
+
+    def draw_name_input(self):
+        self.draw_menu()
+        overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+        overlay.fill((5,5,12,225))
+        self.screen.blit(overlay,(0,0))
+        w,h=500,245
+        x,y=(WINDOW_WIDTH-w)//2,(WINDOW_HEIGHT-h)//2
+        pygame.draw.rect(self.screen,(12,10,24),(x,y,w,h),border_radius=16)
+        pygame.draw.rect(self.screen,(255,0,127),(x,y,w,h),3,border_radius=16)
+        self.draw_text("MODO DESAFIO",FONT_BIG,(255,0,127),WINDOW_WIDTH//2,y+45,center=True)
+        self.draw_text("Digite seu nickname",FONT_SMALL,(208,208,224),WINDOW_WIDTH//2,y+88,center=True)
+        pygame.draw.rect(self.screen,(6,8,18),(x+55,y+112,w-110,48),border_radius=8)
+        pygame.draw.rect(self.screen,(0,240,255),(x+55,y+112,w-110,48),2,border_radius=8)
+        shown=self.name_input if self.name_input else "_"
+        self.draw_text(shown,FONT_MEDIUM,(255,255,255),WINDOW_WIDTH//2,y+136,center=True)
+        self.draw_text("[ ENTER ] Jogar   [ ESC ] Voltar",FONT_SMALL,(160,160,192),WINDOW_WIDTH//2,y+205,center=True)
 
     def draw_pause(self):
         overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
@@ -933,22 +1013,34 @@ class TetrisGame:
 
     def draw_game_over(self):
         overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
-        overlay.fill((5, 5, 12, 224))  # ~88%
+        overlay.fill((5, 5, 12, 224))
         self.screen.blit(overlay, (0, 0))
-        w, h = 480, 300
+        challenge = self.mode == MODE_DESAFIO
+        w, h = (540, 610) if challenge else (480, 300)
         x, y = (WINDOW_WIDTH-w)//2, (WINDOW_HEIGHT-h)//2
         glow = pygame.Surface((w+30, h+30), pygame.SRCALPHA)
         pygame.draw.rect(glow, (255,0,85,55), glow.get_rect(), 10, border_radius=20)
         self.screen.blit(glow, (x-15,y-15))
         pygame.draw.rect(self.screen, (12, 10, 22), (x,y,w,h), border_radius=16)
         pygame.draw.rect(self.screen, (255,0,85), (x,y,w,h), 3, border_radius=16)
-        # Glow do título.
-        for ox, oy in ((-2,0),(2,0),(0,-2),(0,2)):
-            self.draw_text("GAME OVER", FONT_HUGE, (115,0,40), WINDOW_WIDTH//2+ox, y+65+oy, center=True)
-        self.draw_text("GAME OVER", FONT_HUGE, (255,0,85), WINDOW_WIDTH//2, y+65, center=True)
-        self.draw_text(f"Score Final: {self.score}", FONT_MEDIUM, TEXT, WINDOW_WIDTH//2, y+132, center=True)
-        self.draw_text("[ R ]  Reiniciar Partida", FONT_SMALL, (208,208,224), WINDOW_WIDTH//2, y+205, center=True)
-        self.draw_text("[ V ]  Voltar ao Menu Principal", FONT_SMALL, (208,208,224), WINDOW_WIDTH//2, y+244, center=True)
+        self.draw_text("GAME OVER", FONT_HUGE, (255,0,85), WINDOW_WIDTH//2, y+52, center=True)
+        self.draw_text(f"Score Final: {self.score}", FONT_MEDIUM, TEXT, WINDOW_WIDTH//2, y+108, center=True)
+        if challenge:
+            self.draw_text("TOP 10 — MODO DESAFIO", FONT_MEDIUM, (0,240,255), WINDOW_WIDTH//2, y+154, center=True)
+            row_y=y+190
+            for i,item in enumerate(self.challenge_scores[:10],1):
+                name=str(item.get("name","PLAYER"))[:16]
+                score=int(item.get("score",0))
+                date=str(item.get("date",""))[:10]
+                line=f"{i:02d}. {name:<16}  {score:>7}  {date}"
+                self.draw_text(line,FONT_SMALL,(220,220,235),x+38,row_y)
+                row_y += 32
+            if not self.challenge_scores:
+                self.draw_text("Nenhum score registrado.",FONT_SMALL,(160,160,192),WINDOW_WIDTH//2,row_y,center=True)
+            self.draw_text("[ R ] Reiniciar   [ V ] Menu", FONT_SMALL, (208,208,224), WINDOW_WIDTH//2, y+h-35, center=True)
+        else:
+            self.draw_text("[ R ]  Reiniciar Partida", FONT_SMALL, (208,208,224), WINDOW_WIDTH//2, y+205, center=True)
+            self.draw_text("[ V ]  Voltar ao Menu Principal", FONT_SMALL, (208,208,224), WINDOW_WIDTH//2, y+244, center=True)
 
     def draw_badge(self, text, x, y, w, h, active=False):
         bg = (26, 26, 40)
@@ -1196,6 +1288,10 @@ class TetrisGame:
             self.draw_controls()
             self.present()
             return
+        if self.state == "name_input":
+            self.draw_name_input()
+            self.present()
+            return
 
         self.screen.fill(BG)
         self.draw_top_title()
@@ -1227,7 +1323,22 @@ class TetrisGame:
         self.present()
 
     # Entrada
-    def handle_keydown(self, key):
+    def handle_keydown(self, key, text=''):
+        if self.state == "name_input":
+            if key == pygame.K_ESCAPE:
+                self.state = "menu"
+                self.name_input = ""
+            elif key == pygame.K_BACKSPACE:
+                self.name_input = self.name_input[:-1]
+            elif key == pygame.K_RETURN:
+                if self.name_input.strip():
+                    self.player_name = self.name_input.strip()[:16]
+                    self.reset_game(MODE_DESAFIO)
+                    self.state = "playing"
+            elif text and text.isprintable() and len(self.name_input) < 16:
+                self.name_input += text
+            return
+
         if self.state == "controls":
             if self.control_capture:
                 if key == pygame.K_ESCAPE:
@@ -1253,17 +1364,24 @@ class TetrisGame:
             if key == pygame.K_c:
                 self.state = "controls"
             elif key in (pygame.K_UP, pygame.K_DOWN):
-                self.menu_selection = 1 - self.menu_selection
+                self.menu_selection = (self.menu_selection + (-1 if key == pygame.K_UP else 1)) % 3
             elif key == pygame.K_1:
                 self.reset_game(MODE_CLASSICO)
                 self.state = "playing"
             elif key == pygame.K_2:
                 self.reset_game(MODE_CORRIDA)
                 self.state = "playing"
+            elif key == pygame.K_3:
+                self.name_input = ""
+                self.state = "name_input"
             elif key == pygame.K_RETURN:
-                mode = MODE_CLASSICO if self.menu_selection == 0 else MODE_CORRIDA
-                self.reset_game(mode)
-                self.state = "playing"
+                if self.menu_selection == 2:
+                    self.name_input = ""
+                    self.state = "name_input"
+                else:
+                    mode = MODE_CLASSICO if self.menu_selection == 0 else MODE_CORRIDA
+                    self.reset_game(mode)
+                    self.state = "playing"
             return
 
         if self.state == "paused":
@@ -1341,7 +1459,7 @@ class TetrisGame:
             return
         if self.state == "menu":
             if value[1] != 0:
-                self.menu_selection = 1 - self.menu_selection
+                self.menu_selection = (self.menu_selection + (-1 if value[1] > 0 else 1)) % 3
             return
         for action, _ in self.control_actions:
             if action != "soft_drop" and self.binding_matches(action, "hat", hat=hat, value=value):
@@ -1370,9 +1488,13 @@ class TetrisGame:
             return
         if self.state == "menu":
             if button == 0:
-                mode = MODE_CLASSICO if self.menu_selection == 0 else MODE_CORRIDA
-                self.reset_game(mode)
-                self.state = "playing"
+                if self.menu_selection == 2:
+                    self.name_input = ""
+                    self.state = "name_input"
+                else:
+                    mode = MODE_CLASSICO if self.menu_selection == 0 else MODE_CORRIDA
+                    self.reset_game(mode)
+                    self.state = "playing"
             return
         for action, _ in self.control_actions:
             if action != "soft_drop" and self.binding_matches(action, "button", button=button):
@@ -1407,7 +1529,7 @@ class TetrisGame:
                     if event.key == pygame.K_F11:
                         self.toggle_fullscreen()
                     else:
-                        self.handle_keydown(event.key)
+                        self.handle_keydown(event.key, event.unicode)
                 elif event.type == pygame.VIDEORESIZE and not self.fullscreen:
                     self.windowed_size = (max(640, event.w), max(480, event.h))
                     self.window = pygame.display.set_mode(self.windowed_size, pygame.RESIZABLE)

@@ -54,6 +54,7 @@ LINES_PER_LEVEL = 10
 #   MODOS  
 MODE_CLASSICO = "clássico"
 MODE_CORRIDA = "corrida"
+MODE_DESAFIO = "desafio"
 
 #   GRAVIDADE  
 GRAVITY_TYPES = {

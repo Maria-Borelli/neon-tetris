@@ -21,3 +21,6 @@ env/
 # OS
 Thumbs.db
 .DS_Store
+
+# Ranking local do Modo Desafio
+challenge_scores.json
