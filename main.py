@@ -29,7 +29,15 @@ class TetrisGame:
         ]
                 
     def __init__(self):
-        self.screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
+        # Canvas lógico fixo: toda UI/física continua usando a resolução original.
+        self.window = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.RESIZABLE)
+        self.screen = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT)).convert()
+        self.fullscreen = False
+        self.windowed_size = (WINDOW_WIDTH, WINDOW_HEIGHT)
+        self.pillar_background = None
+        self.pillar_background_size = None
+        self.pillar_blocks = []
+        self.init_pillar_blocks()
         pygame.display.set_caption(TITLE)
         self.clock = pygame.time.Clock()
 
@@ -1075,14 +1083,118 @@ class TetrisGame:
             pygame.draw.rect(self.screen,(0,240,255),(tx,ty,tw,th),2,border_radius=10)
             self.draw_text(self.controls_toast,badge_font,(224,240,245),cx,ty+21,center=True)
 
+    def init_pillar_blocks(self):
+        self.pillar_blocks = []
+        colors = [(0,240,255), (255,0,127), (180,0,255), (0,255,140)]
+        for side in (-1, 1):
+            for _ in range(12):
+                self.pillar_blocks.append({
+                    "side": side,
+                    "x": random.random(),
+                    "y": random.random(),
+                    "speed": random.uniform(0.035, 0.10),
+                    "size": random.randint(10, 22),
+                    "color": random.choice(colors),
+                    "shape": random.choice(("I","O","T","L")),
+                })
+
+    def toggle_fullscreen(self):
+        if self.fullscreen:
+            self.window = pygame.display.set_mode(self.windowed_size, pygame.RESIZABLE)
+            self.fullscreen = False
+        else:
+            self.windowed_size = self.window.get_size()
+            self.window = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+            self.fullscreen = True
+        self.pillar_background_size = None
+
+    def update_pillar_blocks(self, dt):
+        for block in self.pillar_blocks:
+            block["y"] += block["speed"] * dt * 10
+            if block["y"] > 1.12:
+                block["y"] = -0.12
+                block["x"] = random.random()
+
+    def get_viewport(self):
+        ww, wh = self.window.get_size()
+        scale = min(ww / WINDOW_WIDTH, wh / WINDOW_HEIGHT)
+        vw, vh = max(1, int(WINDOW_WIDTH * scale)), max(1, int(WINDOW_HEIGHT * scale))
+        return (ww-vw)//2, (wh-vh)//2, vw, vh
+
+    def build_pillar_background(self):
+        size = self.window.get_size()
+        if self.pillar_background is not None and self.pillar_background_size == size:
+            return
+        ww, wh = size
+        bg = pygame.Surface((ww, wh))
+        bg.fill((4, 4, 12))
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "NEON.png")
+        try:
+            art = pygame.image.load(path).convert()
+            # "Blur" cacheado por downscale/upscale; brilho reduzido por máscara.
+            small_w, small_h = max(20, ww//28), max(20, wh//28)
+            blurred = pygame.transform.smoothscale(art, (small_w, small_h))
+            blurred = pygame.transform.smoothscale(blurred, (ww, wh))
+            dim = pygame.Surface((ww, wh), pygame.SRCALPHA)
+            dim.fill((5, 5, 12, 155))  # ~40% de brilho perceptivo.
+            bg.blit(blurred, (0, 0))
+            bg.blit(dim, (0, 0))
+        except (pygame.error, OSError):
+            pass
+        self.pillar_background = bg
+        self.pillar_background_size = size
+
+    def draw_falling_pillars(self, viewport):
+        vx, vy, vw, vh = viewport
+        ww, wh = self.window.get_size()
+        regions = [(0, vx), (vx+vw, ww-(vx+vw))]
+        shapes = {
+            "I": ((0,0),(0,1),(0,2),(0,3)),
+            "O": ((0,0),(1,0),(0,1),(1,1)),
+            "T": ((0,0),(1,0),(2,0),(1,1)),
+            "L": ((0,0),(0,1),(0,2),(1,2)),
+        }
+        for b in self.pillar_blocks:
+            rx, rw = regions[0 if b["side"] < 0 else 1]
+            if rw < 8:
+                continue
+            cell = b["size"]
+            x = rx + int(b["x"] * max(1, rw-cell*3))
+            y = int(b["y"] * wh)
+            surf = pygame.Surface((cell*4, cell*4), pygame.SRCALPHA)
+            for sx, sy in shapes[b["shape"]]:
+                pygame.draw.rect(surf, (*b["color"], 64),
+                                 (sx*cell, sy*cell, cell-2, cell-2), border_radius=3)
+                pygame.draw.rect(surf, (*b["color"], 95),
+                                 (sx*cell, sy*cell, cell-2, cell-2), 1, border_radius=3)
+            self.window.blit(surf, (x, y))
+
+        # Divisores neon entre viewport e pilares.
+        if vx > 0:
+            for x, color in ((vx-1,(0,240,255)), (vx+vw,(255,0,127))):
+                glow = pygame.Surface((7, wh), pygame.SRCALPHA)
+                pygame.draw.line(glow, (*color,35),(3,0),(3,wh),5)
+                self.window.blit(glow,(x-3,0))
+                pygame.draw.line(self.window,color,(x,0),(x,wh),1)
+
+    def present(self):
+        self.build_pillar_background()
+        self.window.blit(self.pillar_background, (0, 0))
+        viewport = self.get_viewport()
+        self.draw_falling_pillars(viewport)
+        vx, vy, vw, vh = viewport
+        scaled = pygame.transform.smoothscale(self.screen, (vw, vh))
+        self.window.blit(scaled, (vx, vy))
+        pygame.display.flip()
+
     def draw(self):
         if self.state == "menu":
             self.draw_menu()
-            pygame.display.flip()
+            self.present()
             return
         if self.state == "controls":
             self.draw_controls()
-            pygame.display.flip()
+            self.present()
             return
 
         self.screen.fill(BG)
@@ -1112,7 +1224,7 @@ class TetrisGame:
         if self.state == "game_over":
             self.draw_game_over()
 
-        pygame.display.flip()
+        self.present()
 
     # Entrada
     def handle_keydown(self, key):
@@ -1292,7 +1404,14 @@ class TetrisGame:
                     pygame.quit()
                     sys.exit()
                 elif event.type == pygame.KEYDOWN:
-                    self.handle_keydown(event.key)
+                    if event.key == pygame.K_F11:
+                        self.toggle_fullscreen()
+                    else:
+                        self.handle_keydown(event.key)
+                elif event.type == pygame.VIDEORESIZE and not self.fullscreen:
+                    self.windowed_size = (max(640, event.w), max(480, event.h))
+                    self.window = pygame.display.set_mode(self.windowed_size, pygame.RESIZABLE)
+                    self.pillar_background_size = None
                 elif event.type == pygame.JOYDEVICEADDED:
                     self.add_joystick(event.device_index)
                 elif event.type == pygame.JOYDEVICEREMOVED:
@@ -1312,6 +1431,7 @@ class TetrisGame:
 
             if self.state == "playing":
                 self.update(dt, keys)
+            self.update_pillar_blocks(dt)
 
             self.draw()
 
