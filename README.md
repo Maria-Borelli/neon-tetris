@@ -54,7 +54,7 @@ git clone https://github.com/Maria-Borelli/neon-tetris.git
 
 2. Acesse a pasta do projeto:
 
-cd neon-tetris-mari
+cd neon-tetris
 
 3. Instale as dependências:
 
