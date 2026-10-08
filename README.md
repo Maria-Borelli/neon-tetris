@@ -69,20 +69,29 @@ python main.py
 ## Controles
 
 Menu
-- Seta Cima / Baixo: navegar entre opções
-- Enter: confirmar seleção
+- Seta Cima / Baixo ou analógico: navegar entre opções
+- Enter ou botão A: confirmar seleção
+- C ou botão B: abrir a tela de controles
 - 1: iniciar Modo Clássico
 - 2: iniciar Modo Corrida
 
 Gameplay
-- Seta Esquerda / Direita: mover peça
-- Seta Cima ou X: rotacionar no sentido horário
+- Esquerda / Direita ou analógico: mover peça
+- Cima sempre gira a peça no sentido horário
 - Z: rotacionar no sentido anti-horário
-- Seta Baixo: queda suave (soft drop)
-- Espaço: queda instantânea (hard drop)
+- Baixo: queda suave (soft drop)
+- Espaço ou botão B: queda instantânea (hard drop)
 - P: pausar / continuar
 - R: reiniciar partida
 - V: voltar ao menu principal
+
+Controle / Gamepad
+- D-Pad e analógico esquerdo controlam a navegação e o movimento
+- Cima gira a peça no sentido horário
+- A: confirmar / inserir nos menus
+- B: voltar / apagar no menu de nome
+- Start: confirmar em menus e pausar durante a partida
+- Os menus principal, pausa, controles, game over e nome aceitam controle/gamepad/joystick
 
 ---
 

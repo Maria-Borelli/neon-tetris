@@ -1,6 +1,14 @@
 {
   "left": [
     {
+      "type": "hat",
+      "hat": 0,
+      "value": [
+        -1,
+        0
+      ]
+    },
+    {
       "type": "axis",
       "axis": 0,
       "sign": -1
@@ -8,12 +16,28 @@
   ],
   "right": [
     {
+      "type": "hat",
+      "hat": 0,
+      "value": [
+        1,
+        0
+      ]
+    },
+    {
       "type": "axis",
       "axis": 0,
       "sign": 1
     }
   ],
   "soft_drop": [
+    {
+      "type": "hat",
+      "hat": 0,
+      "value": [
+        0,
+        -1
+      ]
+    },
     {
       "type": "axis",
       "axis": 1,
@@ -23,10 +47,23 @@
   "hard_drop": [
     {
       "type": "button",
-      "button": 7
+      "button": 1
     }
   ],
   "rotate_cw": [
+    {
+      "type": "hat",
+      "hat": 0,
+      "value": [
+        0,
+        1
+      ]
+    },
+    {
+      "type": "axis",
+      "axis": 1,
+      "sign": -1
+    },
     {
       "type": "button",
       "button": 0
@@ -39,6 +76,10 @@
     }
   ],
   "hold": [
+    {
+      "type": "button",
+      "button": 4
+    },
     {
       "type": "axis",
       "axis": 5,

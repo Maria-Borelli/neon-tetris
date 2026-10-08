@@ -78,12 +78,14 @@ class TetrisGame:
         ]
         self.control_selection = 0
         self.pause_selection = 0
+        self.game_over_selection = 0
         self.controls_return_state = "menu"
         self.control_capture = None
         self.control_capture_device = "gamepad"
         self.controls_toast = ""
         self.controls_toast_timer = 0.0
         self.axis_latched = set()
+        self.name_keyboard_selection = 0
         self.controller_bindings = self.load_controller_bindings()
 
         self.reset_game(self.mode)
@@ -105,18 +107,20 @@ class TetrisGame:
         self.joysticks.pop(instance_id, None)
 
     def default_controller_bindings(self):
-        # SDL mais comum: D-Pad = hat 0; botões 0/1/2; ombros 4/5.
-        # Hard drop também aceita gatilhos por padrão.
+        # SDL mais comum: D-Pad = hat 0; botões 0/1/2/3; ombros 4/5.
+        # Cima sempre gira a peça no sentido horário.
         return {
-            "left": [{"type": "hat", "hat": 0, "value": [-1, 0]}],
-            "right": [{"type": "hat", "hat": 0, "value": [1, 0]}],
-            "soft_drop": [{"type": "hat", "hat": 0, "value": [0, -1]}],
-            "hard_drop": [{"type": "hat", "hat": 0, "value": [0, 1]},
-                          {"type": "axis", "axis": 2, "sign": 1},
-                          {"type": "axis", "axis": 5, "sign": 1}],
-            "rotate_cw": [{"type": "button", "button": 1}],
-            "rotate_ccw": [{"type": "button", "button": 0},
-                           {"type": "button", "button": 2}],
+            "left": [{"type": "hat", "hat": 0, "value": [-1, 0]},
+                     {"type": "axis", "axis": 0, "sign": -1}],
+            "right": [{"type": "hat", "hat": 0, "value": [1, 0]},
+                      {"type": "axis", "axis": 0, "sign": 1}],
+            "soft_drop": [{"type": "hat", "hat": 0, "value": [0, -1]},
+                          {"type": "axis", "axis": 1, "sign": 1}],
+            "hard_drop": [{"type": "button", "button": 1}],
+            "rotate_cw": [{"type": "hat", "hat": 0, "value": [0, 1]},
+                           {"type": "axis", "axis": 1, "sign": -1},
+                           {"type": "button", "button": 0}],
+            "rotate_ccw": [{"type": "button", "button": 3}],
             "hold": [{"type": "button", "button": 4},
                      {"type": "button", "button": 5}],
         }
@@ -128,8 +132,13 @@ class TetrisGame:
         try:
             with open(self.bindings_path(), "r", encoding="utf-8") as f:
                 data = json.load(f)
-            if all(k in data for k, _ in self.control_actions):
-                return data
+            defaults = self.default_controller_bindings()
+            if isinstance(data, dict):
+                for action, bindings in defaults.items():
+                    if action not in data or not data[action]:
+                        data[action] = bindings
+                if all(k in data for k, _ in self.control_actions):
+                    return data
         except (OSError, ValueError, TypeError):
             pass
         return self.default_controller_bindings()
@@ -266,6 +275,92 @@ class TetrisGame:
                     pass
         return False
 
+    def start_selected_mode(self):
+        if self.menu_selection == 2:
+            self.name_input = ""
+            self.name_keyboard_selection = 0
+            self.state = "name_input"
+        else:
+            mode = MODE_CLASSICO if self.menu_selection == 0 else MODE_CORRIDA
+            self.reset_game(mode)
+            self.state = "playing"
+
+    def open_controls(self, return_state):
+        self.controls_return_state = return_state
+        self.control_selection = 0
+        self.control_capture = None
+        self.state = "controls"
+
+    def resume_from_pause(self):
+        self.state = "playing"
+        self.pause_selection = 0
+
+    def confirm_pause_selection(self):
+        if self.pause_selection == 0:
+            self.resume_from_pause()
+        elif self.pause_selection == 1:
+            self.open_controls("paused")
+        elif self.pause_selection == 2:
+            self.reset_game(self.mode)
+            self.state = "playing"
+            self.pause_selection = 0
+        else:
+            self.menu_selection = 0
+            self.state = "menu"
+            self.pause_selection = 0
+
+    def confirm_game_over_selection(self):
+        if self.game_over_selection == 0:
+            self.reset_game(self.mode)
+            self.state = "playing"
+        else:
+            self.menu_selection = 0
+            self.state = "menu"
+        self.game_over_selection = 0
+
+    def confirm_name_input(self):
+        self.player_name = (self.name_input.strip() or "PLAYER")[:16]
+        self.reset_game(MODE_DESAFIO)
+        self.state = "playing"
+
+    def name_keyboard_items(self):
+        return list("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-") + ["<", "OK"]
+
+    def move_name_keyboard(self, dx=0, dy=0):
+        items = self.name_keyboard_items()
+        cols = 10
+        rows = (len(items) + cols - 1) // cols
+        row = self.name_keyboard_selection // cols
+        col = self.name_keyboard_selection % cols
+        row = (row + dy) % rows
+        col = (col + dx) % cols
+        self.name_keyboard_selection = min(len(items) - 1, row * cols + col)
+
+    def activate_name_keyboard_selection(self):
+        items = self.name_keyboard_items()
+        if not items:
+            return
+        selected = items[self.name_keyboard_selection]
+        if selected == "<":
+            self.name_input = self.name_input[:-1]
+            return
+        if selected == "OK":
+            self.confirm_name_input()
+            return
+        if len(self.name_input) < 16:
+            self.name_input += selected
+
+    def move_menu_selection(self, delta, total):
+        if total <= 0:
+            return
+        self.menu_selection = (self.menu_selection + delta) % total
+
+    def move_pause_selection(self, delta):
+        self.pause_selection = (self.pause_selection + delta) % 4
+
+    def move_game_over_selection(self, delta):
+        self.game_over_selection = (self.game_over_selection + delta) % 2
+
     def load_menu_background(self):
         """Capa em cover proporcional, alinhada ao topo."""
         path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "NEON.png")
@@ -344,6 +439,7 @@ class TetrisGame:
 
     def finish_game(self):
         self.game_over = True
+        self.game_over_selection = 0
         self.state = "game_over"
         self.save_challenge_score()
 
@@ -943,15 +1039,15 @@ class TetrisGame:
             self.draw_text(desc[1],FONT_SMALL,dc,center_x,y+76,center=True)
         footer=pygame.Surface((WINDOW_WIDTH,68),pygame.SRCALPHA); footer.fill((5,5,12,105))
         self.screen.blit(footer,(0,WINDOW_HEIGHT-68))
-        self.draw_text("[ ↑ / ↓ ] Navegar",FONT_SMALL,(208,208,224),center_x,WINDOW_HEIGHT-44,center=True)
-        self.draw_text("[ ENTER ] Confirmar  |  [ C ] Controles",FONT_SMALL,(208,208,224),center_x,WINDOW_HEIGHT-19,center=True)
+        self.draw_text("[ ↑ / ↓ / ANALÓGICO ] Navegar",FONT_SMALL,(208,208,224),center_x,WINDOW_HEIGHT-44,center=True)
+        self.draw_text("[ ENTER / A ] Confirmar  |  [ C / B ] Controles",FONT_SMALL,(208,208,224),center_x,WINDOW_HEIGHT-19,center=True)
 
     def draw_name_input(self):
         self.draw_menu()
         overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
         overlay.fill((5,5,12,225))
         self.screen.blit(overlay,(0,0))
-        w,h=500,245
+        w,h=560,395
         x,y=(WINDOW_WIDTH-w)//2,(WINDOW_HEIGHT-h)//2
         pygame.draw.rect(self.screen,(12,10,24),(x,y,w,h),border_radius=16)
         pygame.draw.rect(self.screen,(255,0,127),(x,y,w,h),3,border_radius=16)
@@ -961,7 +1057,36 @@ class TetrisGame:
         pygame.draw.rect(self.screen,(0,240,255),(x+55,y+112,w-110,48),2,border_radius=8)
         shown=self.name_input if self.name_input else "_"
         self.draw_text(shown,FONT_MEDIUM,(255,255,255),WINDOW_WIDTH//2,y+136,center=True)
-        self.draw_text("[ ENTER ] Jogar   [ ESC ] Voltar",FONT_SMALL,(160,160,192),WINDOW_WIDTH//2,y+205,center=True)
+        self.draw_text("[ ENTER / A ] Jogar   [ B ] Apagar   [ START ] Confirmar",FONT_SMALL,(160,160,192),WINDOW_WIDTH//2,y+205,center=True)
+
+        items = self.name_keyboard_items()
+        cols = 10
+        cell_w = 44
+        cell_h = 34
+        gap = 6
+        grid_w = cols * cell_w + (cols - 1) * gap
+        grid_x = x + (w - grid_w) // 2
+        grid_y = y + 238
+        key_font = pygame.font.SysFont("consolas,couriernew,arial", 14, bold=True)
+
+        for index, item in enumerate(items):
+            row = index // cols
+            col = index % cols
+            cell_x = grid_x + col * (cell_w + gap)
+            cell_y = grid_y + row * (cell_h + gap)
+            selected = index == self.name_keyboard_selection
+            bg = (0, 240, 255, 35) if selected else (255, 255, 255, 10)
+            border = (0, 240, 255) if selected else (58, 58, 94)
+            pygame.draw.rect(self.screen, (20, 20, 34), (cell_x, cell_y, cell_w, cell_h), border_radius=8)
+            key_overlay = pygame.Surface((cell_w, cell_h), pygame.SRCALPHA)
+            key_overlay.fill(bg)
+            self.screen.blit(key_overlay, (cell_x, cell_y))
+            pygame.draw.rect(self.screen, border, (cell_x, cell_y, cell_w, cell_h), 2 if selected else 1, border_radius=8)
+            label = "BACK" if item == "<" else item
+            self.draw_text(label, key_font, (255, 255, 255), cell_x + cell_w // 2, cell_y + cell_h // 2, center=True)
+
+        self.draw_text("[ ANALÓGICO / D-PAD ] Navegar  •  [ A ] Inserir  •  [ B ] Apagar", FONT_SMALL, (160,160,192), WINDOW_WIDTH//2, y+h-42, center=True)
+        self.draw_text("[ START ] Confirmar", FONT_SMALL, (160,160,192), WINDOW_WIDTH//2, y+h-18, center=True)
 
     def draw_pause(self):
         overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
@@ -1008,7 +1133,7 @@ class TetrisGame:
             key_surf = FONT_SMALL.render(shortcut, True, (160, 160, 192))
             self.screen.blit(key_surf, (card_x + card_w - key_surf.get_width() - 42, y + 9))
 
-        self.draw_text("[ ↑ / ↓ ] Navegar   •   [ ENTER ] Confirmar",
+        self.draw_text("[ ↑ / ↓ / ANALÓGICO ] Navegar   •   [ ENTER / A ] Confirmar",
                        FONT_SMALL, (140, 140, 165), cx, card_y + card_h - 28, center=True)
 
     def draw_game_over(self):
@@ -1037,10 +1162,27 @@ class TetrisGame:
                 row_y += 32
             if not self.challenge_scores:
                 self.draw_text("Nenhum score registrado.",FONT_SMALL,(160,160,192),WINDOW_WIDTH//2,row_y,center=True)
-            self.draw_text("[ R ] Reiniciar   [ V ] Menu", FONT_SMALL, (208,208,224), WINDOW_WIDTH//2, y+h-35, center=True)
-        else:
-            self.draw_text("[ R ]  Reiniciar Partida", FONT_SMALL, (208,208,224), WINDOW_WIDTH//2, y+205, center=True)
-            self.draw_text("[ V ]  Voltar ao Menu Principal", FONT_SMALL, (208,208,224), WINDOW_WIDTH//2, y+244, center=True)
+
+        options = [
+            ("REINICIAR", "[ A / ENTER ]"),
+            ("MENU PRINCIPAL", "[ B / ESC ]"),
+        ]
+        opt_y = y + (520 if challenge else 190)
+        opt_w = 190
+        opt_h = 46
+        opt_x = WINDOW_WIDTH // 2 - opt_w - 12
+        for i, (label, shortcut) in enumerate(options):
+            cell_x = opt_x + i * (opt_w + 24)
+            selected = i == self.game_over_selection
+            pygame.draw.rect(self.screen, (18, 18, 32), (cell_x, opt_y, opt_w, opt_h), border_radius=10)
+            pygame.draw.rect(self.screen, (0, 240, 255) if selected else (58, 58, 94), (cell_x, opt_y, opt_w, opt_h), 2 if selected else 1, border_radius=10)
+            if selected:
+                self.draw_text(">", FONT_MEDIUM, (0, 240, 255), cell_x + 16, opt_y + 24)
+            self.draw_text(label, FONT_SMALL, (0, 240, 255) if selected else TEXT, cell_x + opt_w // 2, opt_y + 18, center=True)
+            self.draw_text(shortcut, FONT_SMALL, (160, 160, 192), cell_x + opt_w // 2, opt_y + 34, center=True)
+
+        self.draw_text("[ ↑ / ↓ / ANALÓGICO ] Navegar   •   [ ENTER / A ] Confirmar   •   [ START ] Confirmar",
+                       FONT_SMALL, (208,208,224), WINDOW_WIDTH//2, y+h-32, center=True)
 
     def draw_badge(self, text, x, y, w, h, active=False):
         bg = (26, 26, 40)
@@ -1068,7 +1210,7 @@ class TetrisGame:
 
         # Dica compacta para nunca ultrapassar a janela.
         hint_font = pygame.font.SysFont("consolas,couriernew,arial", 12, bold=True)
-        self.draw_text("[↑/↓] Navegar  •  [ENTER] Mudar  •  [R] Resetar",
+        self.draw_text("[↑/↓/ANALÓGICO] Navegar  •  [ENTER/A] Mudar  •  [R/START] Resetar",
                        hint_font, (160,160,192), cx, 88, center=True)
 
         # 89% da largura, centralizada e com margens simétricas.
@@ -1165,7 +1307,7 @@ class TetrisGame:
         footer=pygame.Surface((WINDOW_WIDTH,38),pygame.SRCALPHA)
         footer.fill((5,5,12,235))
         self.screen.blit(footer,(0,WINDOW_HEIGHT-38))
-        esc=badge_font.render("[ ESC ] Voltar ao Menu",True,(208,208,224))
+        esc=badge_font.render("[ ESC / B ] Voltar ao Menu",True,(208,208,224))
         self.screen.blit(esc,(WINDOW_WIDTH-esc.get_width()-28,WINDOW_HEIGHT-27))
 
         if self.controls_toast_timer > 0 and self.controls_toast:
@@ -1331,10 +1473,17 @@ class TetrisGame:
             elif key == pygame.K_BACKSPACE:
                 self.name_input = self.name_input[:-1]
             elif key == pygame.K_RETURN:
-                if self.name_input.strip():
-                    self.player_name = self.name_input.strip()[:16]
-                    self.reset_game(MODE_DESAFIO)
-                    self.state = "playing"
+                self.confirm_name_input()
+            elif key == pygame.K_LEFT:
+                self.move_name_keyboard(-1, 0)
+            elif key == pygame.K_RIGHT:
+                self.move_name_keyboard(1, 0)
+            elif key == pygame.K_UP:
+                self.move_name_keyboard(0, -1)
+            elif key == pygame.K_DOWN:
+                self.move_name_keyboard(0, 1)
+            elif key == pygame.K_SPACE:
+                self.activate_name_keyboard_selection()
             elif text and text.isprintable() and len(self.name_input) < 16:
                 self.name_input += text
             return
@@ -1360,41 +1509,50 @@ class TetrisGame:
                 self.controls_toast_timer = 2.2
             return
 
+        if self.state == "game_over":
+            if key in (pygame.K_UP, pygame.K_DOWN):
+                self.move_game_over_selection(-1 if key == pygame.K_UP else 1)
+            elif key in (pygame.K_RETURN, pygame.K_SPACE):
+                self.confirm_game_over_selection()
+            elif key == pygame.K_r:
+                self.game_over_selection = 0
+                self.confirm_game_over_selection()
+            elif key == pygame.K_v:
+                self.game_over_selection = 1
+                self.confirm_game_over_selection()
+            elif key == pygame.K_ESCAPE:
+                self.menu_selection = 0
+                self.state = "menu"
+            return
+
         if self.state == "menu":
             if key == pygame.K_c:
-                self.state = "controls"
+                self.open_controls("menu")
             elif key in (pygame.K_UP, pygame.K_DOWN):
-                self.menu_selection = (self.menu_selection + (-1 if key == pygame.K_UP else 1)) % 3
+                self.move_menu_selection(-1 if key == pygame.K_UP else 1, 3)
             elif key == pygame.K_1:
-                self.reset_game(MODE_CLASSICO)
-                self.state = "playing"
+                self.menu_selection = 0
+                self.start_selected_mode()
             elif key == pygame.K_2:
-                self.reset_game(MODE_CORRIDA)
-                self.state = "playing"
+                self.menu_selection = 1
+                self.start_selected_mode()
             elif key == pygame.K_3:
                 self.name_input = ""
+                self.name_keyboard_selection = 0
                 self.state = "name_input"
             elif key == pygame.K_RETURN:
-                if self.menu_selection == 2:
-                    self.name_input = ""
-                    self.state = "name_input"
-                else:
-                    mode = MODE_CLASSICO if self.menu_selection == 0 else MODE_CORRIDA
-                    self.reset_game(mode)
-                    self.state = "playing"
+                self.start_selected_mode()
             return
 
         if self.state == "paused":
             if key in (pygame.K_ESCAPE, pygame.K_p):
-                self.state = "playing"
-                self.pause_selection = 0
+                self.resume_from_pause()
             elif key == pygame.K_UP:
-                self.pause_selection = (self.pause_selection - 1) % 4
+                self.move_pause_selection(-1)
             elif key == pygame.K_DOWN:
-                self.pause_selection = (self.pause_selection + 1) % 4
+                self.move_pause_selection(1)
             elif key == pygame.K_c:
-                self.controls_return_state = "paused"
-                self.state = "controls"
+                self.open_controls("paused")
             elif key == pygame.K_r:
                 self.reset_game(self.mode)
                 self.state = "playing"
@@ -1404,18 +1562,7 @@ class TetrisGame:
                 self.state = "menu"
                 self.pause_selection = 0
             elif key == pygame.K_RETURN:
-                if self.pause_selection == 0:
-                    self.state = "playing"
-                elif self.pause_selection == 1:
-                    self.controls_return_state = "paused"
-                    self.state = "controls"
-                elif self.pause_selection == 2:
-                    self.reset_game(self.mode)
-                    self.state = "playing"
-                else:
-                    self.menu_selection = 0
-                    self.state = "menu"
-                self.pause_selection = 0
+                self.confirm_pause_selection()
             return
 
         if key in (pygame.K_ESCAPE, pygame.K_p):
@@ -1451,15 +1598,32 @@ class TetrisGame:
             self.hard_drop()
     
     def handle_controller_hat(self, value, hat=0):
-        if self.state == "paused":
-            if value[1] > 0:
-                self.pause_selection = (self.pause_selection - 1) % 4
-            elif value[1] < 0:
-                self.pause_selection = (self.pause_selection + 1) % 4
-            return
         if self.state == "menu":
             if value[1] != 0:
-                self.menu_selection = (self.menu_selection + (-1 if value[1] > 0 else 1)) % 3
+                self.move_menu_selection(-1 if value[1] > 0 else 1, 3)
+            return
+        if self.state == "paused":
+            if value[1] != 0:
+                self.move_pause_selection(-1 if value[1] > 0 else 1)
+            return
+        if self.state == "controls":
+            if self.control_capture:
+                return
+            if value[1] != 0:
+                self.control_selection = (self.control_selection + (-1 if value[1] > 0 else 1)) % len(self.control_actions)
+            return
+        if self.state == "game_over":
+            if value[1] != 0:
+                self.move_game_over_selection(-1 if value[1] > 0 else 1)
+            return
+        if self.state == "name_input":
+            if value[0] != 0:
+                self.move_name_keyboard(-1 if value[0] < 0 else 1, 0)
+            if value[1] != 0:
+                self.move_name_keyboard(0, -1 if value[1] > 0 else 1)
+            return
+        if self.state == "playing" and value[0] != 0:
+            self.move_piece(value[0])
             return
         for action, _ in self.control_actions:
             if action != "soft_drop" and self.binding_matches(action, "hat", hat=hat, value=value):
@@ -1471,30 +1635,44 @@ class TetrisGame:
             self.state = "paused" if self.state == "playing" else "playing"
             self.pause_selection = 0
             return
+        if self.state == "menu":
+            if button == 0 or button == 7:
+                self.start_selected_mode()
+            elif button == 1:
+                self.open_controls("menu")
+            return
+        if self.state == "game_over":
+            if button == 0 or button == 7:
+                self.confirm_game_over_selection()
+            elif button == 1:
+                self.game_over_selection = 1
+                self.confirm_game_over_selection()
+            return
+        if self.state == "name_input":
+            if button == 0:
+                self.activate_name_keyboard_selection()
+            elif button == 1:
+                self.name_input = self.name_input[:-1]
+            elif button == 7:
+                self.confirm_name_input()
+            return
         if self.state == "paused":
             if button == 0:
-                if self.pause_selection == 0:
-                    self.state = "playing"
-                elif self.pause_selection == 1:
-                    self.controls_return_state = "paused"
-                    self.state = "controls"
-                elif self.pause_selection == 2:
-                    self.reset_game(self.mode)
-                    self.state = "playing"
-                else:
-                    self.menu_selection = 0
-                    self.state = "menu"
-                self.pause_selection = 0
+                self.confirm_pause_selection()
+            elif button == 1 or button == 7:
+                self.resume_from_pause()
             return
-        if self.state == "menu":
+        if self.state == "controls":
             if button == 0:
-                if self.menu_selection == 2:
-                    self.name_input = ""
-                    self.state = "name_input"
+                if self.control_capture:
+                    return
+                self.control_capture = self.control_actions[self.control_selection][0]
+            elif button == 1 or button == 7:
+                if self.control_capture:
+                    self.control_capture = None
                 else:
-                    mode = MODE_CLASSICO if self.menu_selection == 0 else MODE_CORRIDA
-                    self.reset_game(mode)
-                    self.state = "playing"
+                    self.state = self.controls_return_state
+                    self.controls_return_state = "menu"
             return
         for action, _ in self.control_actions:
             if action != "soft_drop" and self.binding_matches(action, "button", button=button):
@@ -1509,6 +1687,31 @@ class TetrisGame:
         if key in self.axis_latched:
             return
         self.axis_latched.add(key)
+
+        if self.state == "menu":
+            if axis == 1:
+                self.move_menu_selection(-1 if value < 0 else 1, 3)
+            return
+        if self.state == "paused":
+            if axis == 1:
+                self.move_pause_selection(-1 if value < 0 else 1)
+            return
+        if self.state == "controls":
+            if self.control_capture:
+                return
+            if axis == 1:
+                self.control_selection = (self.control_selection + (-1 if value < 0 else 1)) % len(self.control_actions)
+            return
+        if self.state == "game_over":
+            if axis == 1:
+                self.move_game_over_selection(-1 if value < 0 else 1)
+            return
+        if self.state == "name_input":
+            if axis == 0:
+                self.move_name_keyboard(-1 if value < 0 else 1, 0)
+            elif axis == 1:
+                self.move_name_keyboard(0, -1 if value < 0 else 1)
+            return
         for action, _ in self.control_actions:
             if action != "soft_drop" and self.binding_matches(action, "axis", axis=axis, value=value):
                 self.perform_controller_action(action)
