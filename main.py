@@ -667,6 +667,9 @@ class TetrisGame:
 
         if self.valid_position(self.current_piece, dx=dx):
             self.current_piece.x += dx
+            if self.current_piece.touching_ground:
+                self.current_piece.touching_ground = False
+                self.lock_timer = 0.0
 
     def rotate_piece(self, direction):
         old_rotation = self.current_piece.rotation
@@ -682,6 +685,9 @@ class TetrisGame:
             if self.valid_position(self.current_piece, dx=offset, rotation=new_rotation):
                 self.current_piece.rotation = new_rotation
                 self.current_piece.x += offset
+                if self.current_piece.touching_ground:
+                    self.current_piece.touching_ground = False
+                    self.lock_timer = 0.0
                 return
 
     def hard_drop(self):
@@ -1076,11 +1082,12 @@ class TetrisGame:
         pygame.draw.rect(self.screen,(255,0,127),(x,y,w,h),3,border_radius=16)
         self.draw_text("MODO DESAFIO",FONT_BIG,(255,0,127),WINDOW_WIDTH//2,y+45,center=True)
         self.draw_text("Digite seu nickname",FONT_SMALL,(208,208,224),WINDOW_WIDTH//2,y+88,center=True)
+        self.draw_text("TECLADO VIRTUAL",FONT_MEDIUM,(0,240,255),WINDOW_WIDTH//2,y+168,center=True)
         pygame.draw.rect(self.screen,(6,8,18),(x+55,y+112,w-110,48),border_radius=8)
         pygame.draw.rect(self.screen,(0,240,255),(x+55,y+112,w-110,48),2,border_radius=8)
         shown=self.name_input if self.name_input else "_"
         self.draw_text(shown,FONT_MEDIUM,(255,255,255),WINDOW_WIDTH//2,y+136,center=True)
-        self.draw_text("[ ENTER / A ] Jogar   [ B ] Apagar   [ START ] Confirmar",FONT_SMALL,(160,160,192),WINDOW_WIDTH//2,y+205,center=True)
+        self.draw_text("[ A / ENTER ] Inserir   [ B ] Apagar   [ START ] Confirmar",FONT_SMALL,(160,160,192),WINDOW_WIDTH//2,y+205,center=True)
 
         items = self.name_keyboard_items()
         cols = 10
@@ -1098,8 +1105,8 @@ class TetrisGame:
             cell_x = grid_x + col * (cell_w + gap)
             cell_y = grid_y + row * (cell_h + gap)
             selected = index == self.name_keyboard_selection
-            bg = (0, 240, 255, 35) if selected else (255, 255, 255, 10)
-            border = (0, 240, 255) if selected else (58, 58, 94)
+            bg = (0, 240, 255, 48) if selected else (255, 255, 255, 10)
+            border = (255, 0, 127) if selected else (58, 58, 94)
             pygame.draw.rect(self.screen, (20, 20, 34), (cell_x, cell_y, cell_w, cell_h), border_radius=8)
             key_overlay = pygame.Surface((cell_w, cell_h), pygame.SRCALPHA)
             key_overlay.fill(bg)
@@ -1109,7 +1116,7 @@ class TetrisGame:
             self.draw_text(label, key_font, (255, 255, 255), cell_x + cell_w // 2, cell_y + cell_h // 2, center=True)
 
         self.draw_text("[ ANALÓGICO / D-PAD ] Navegar  •  [ A ] Inserir  •  [ B ] Apagar", FONT_SMALL, (160,160,192), WINDOW_WIDTH//2, y+h-42, center=True)
-        self.draw_text("[ START ] Confirmar", FONT_SMALL, (160,160,192), WINDOW_WIDTH//2, y+h-18, center=True)
+        self.draw_text("[ START ] Confirmar  •  [ ESC ] Voltar", FONT_SMALL, (160,160,192), WINDOW_WIDTH//2, y+h-18, center=True)
 
     def draw_pause(self):
         overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
@@ -1204,7 +1211,7 @@ class TetrisGame:
             self.draw_text(label, FONT_SMALL, (0, 240, 255) if selected else TEXT, cell_x + opt_w // 2, opt_y + 18, center=True)
             self.draw_text(shortcut, FONT_SMALL, (160, 160, 192), cell_x + opt_w // 2, opt_y + 34, center=True)
 
-        self.draw_text("[ ↑ / ↓ / ANALÓGICO ] Navegar   •   [ ENTER / A ] Confirmar   •   [ START ] Confirmar",
+        self.draw_text("[ ← / → / ANALÓGICO ] Navegar   •   [ ENTER / A ] Confirmar   •   [ START ] Confirmar",
                        FONT_SMALL, (208,208,224), WINDOW_WIDTH//2, y+h-32, center=True)
 
     def draw_badge(self, text, x, y, w, h, active=False):
@@ -1578,8 +1585,8 @@ class TetrisGame:
             return
 
         if self.state == "game_over":
-            if key in (pygame.K_UP, pygame.K_DOWN):
-                self.move_game_over_selection(-1 if key == pygame.K_UP else 1)
+            if key in (pygame.K_LEFT, pygame.K_RIGHT):
+                self.move_game_over_selection(-1 if key == pygame.K_LEFT else 1)
             elif key in (pygame.K_RETURN, pygame.K_SPACE):
                 self.confirm_game_over_selection()
             elif key == pygame.K_r:
@@ -1681,8 +1688,8 @@ class TetrisGame:
                 self.control_selection = (self.control_selection + (-1 if value[1] > 0 else 1)) % len(self.control_actions)
             return
         if self.state == "game_over":
-            if value[1] != 0:
-                self.move_game_over_selection(-1 if value[1] > 0 else 1)
+            if value[0] != 0:
+                self.move_game_over_selection(-1 if value[0] < 0 else 1)
             return
         if self.state == "name_input":
             if value[0] != 0:
@@ -1771,7 +1778,7 @@ class TetrisGame:
                 self.control_selection = (self.control_selection + (-1 if value < 0 else 1)) % len(self.control_actions)
             return
         if self.state == "game_over":
-            if axis == 1:
+            if axis == 0:
                 self.move_game_over_selection(-1 if value < 0 else 1)
             return
         if self.state == "name_input":
