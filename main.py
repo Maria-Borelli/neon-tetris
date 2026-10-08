@@ -457,7 +457,9 @@ class TetrisGame:
             self.obstacle_cells = []
 
             self.challenge_active = None
+            self.challenge_pending = None
             self.challenge_timer = 0.0
+            self.challenge_alert_timer =0.0
             self.challenge_phase = "waiting"
 
             self.current_piece = self.generate_piece()
@@ -514,16 +516,31 @@ class TetrisGame:
         duration = CHALLENGE_DURATION - (self.level - 1) * CHALLENGE_DURATION_LEVEL_REDUCTION
         return max(CHALLENGE_DURATION_MIN, duration)
 
+    def get_challenge_label(self, challenge):
+        labels = {
+            "obstacles": "BARREIRA",
+            "speed": "VELOCIDADE",
+        }
+        return labels.get(challenge, "DESAFIO")
+
     def activate_challenge(self):
         enabled = self.get_enabled_challenges()
         if not enabled:
             return
         choice = random.choice(enabled)
-        self.challenge_active = choice
+        self.challenge_pending = choice
+        self.challenge_active = None
+        self.challenge_phase = "alert"
+        self.challenge_alert_timer = 2.25
+        self.challenge_timer = 0.0
+
+    def start_challenge(self):
+        self.challenge_active = self.challenge_pending
+        self.challenge_pending = None
         self.challenge_phase = "active"
         self.challenge_timer = 0.0
-        if choice == "obstacles":
-                    self.spawn_barrier()
+        if self.challenge_active == "obstacles":
+            self.spawn_barrier()
 
     def deactivate_challenge(self):
         if self.challenge_active == "obstacles":
@@ -749,6 +766,12 @@ class TetrisGame:
     # Update
     def update(self, dt, keys):
         if self.state != "playing":
+            return
+
+        if self.challenge_phase == "alert":
+            self.challenge_alert_timer = max(0.0, self.challenge_alert_timer - dt)
+            if self.challenge_alert_timer <= 0:
+                self.start_challenge()
             return
 
         self.title_timer += dt
@@ -1456,6 +1479,9 @@ class TetrisGame:
 
         self.draw_sidebar()
 
+        if self.challenge_phase == "alert":
+            self.draw_challenge_alert()
+
         if self.state == "paused":
             self.draw_pause()
 
@@ -1463,6 +1489,48 @@ class TetrisGame:
             self.draw_game_over()
 
         self.present()
+
+    def draw_challenge_alert(self):
+        if self.challenge_phase != "alert" or self.challenge_pending is None:
+            return
+
+        alert_color = (255, 0, 127) if self.challenge_pending == "obstacles" else (0, 240, 255)
+        accent_color = (255, 220, 0) if self.challenge_pending == "obstacles" else (255, 90, 255)
+        pulse = abs(pygame.math.Vector2(1, 0).rotate(self.challenge_alert_timer * 540).x)
+
+        overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+        overlay.fill((10, 0, 24, 185))
+        self.screen.blit(overlay, (0, 0))
+
+        scan = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+        for y in range(0, WINDOW_HEIGHT, 4):
+            alpha = 22 if (y // 4) % 2 == 0 else 10
+            pygame.draw.line(scan, (*alert_color, alpha), (0, y), (WINDOW_WIDTH, y))
+        self.screen.blit(scan, (0, 0))
+
+        card_w, card_h = 620, 250
+        card_x = (WINDOW_WIDTH - card_w) // 2
+        card_y = (WINDOW_HEIGHT - card_h) // 2 - 20
+
+        glow = pygame.Surface((card_w + 40, card_h + 40), pygame.SRCALPHA)
+        for width, alpha in ((14, 28), (8, 55), (4, 95)):
+            pygame.draw.rect(glow, (*alert_color, alpha), (20, 20, card_w, card_h), width, border_radius=20)
+        self.screen.blit(glow, (card_x - 20, card_y - 20))
+
+        pygame.draw.rect(self.screen, (12, 12, 24), (card_x, card_y, card_w, card_h), border_radius=20)
+        pygame.draw.rect(self.screen, alert_color, (card_x, card_y, card_w, card_h), 4, border_radius=20)
+
+        cx = WINDOW_WIDTH // 2
+        self.draw_text("DESAFIO CHEGANDO", FONT_HUGE, accent_color, cx, card_y + 58, center=True)
+        self.draw_text(self.get_challenge_label(self.challenge_pending), FONT_HUGE, alert_color, cx, card_y + 118, center=True)
+        self.draw_text("Jogo pausado momentaneamente", FONT_MEDIUM, (235, 235, 245), cx, card_y + 166, center=True)
+        self.draw_text(f"Preparando em {self.challenge_alert_timer:0.1f}s", FONT_SMALL, (190, 190, 210), cx, card_y + 208, center=True)
+
+        ring = pygame.Surface((180, 180), pygame.SRCALPHA)
+        radius = 62 + int(10 * pulse)
+        pygame.draw.circle(ring, (*alert_color, 110), (90, 90), radius, 4)
+        pygame.draw.circle(ring, (*accent_color, 150), (90, 90), radius - 16, 2)
+        self.screen.blit(ring, (cx - 90, card_y - 56))
 
     # Entrada
     def handle_keydown(self, key, text=''):
